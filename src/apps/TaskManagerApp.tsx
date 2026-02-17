@@ -90,7 +90,7 @@ const TaskManagerApp: React.FC = () => {
             {t('taskMgr.temp')}: {cpuTemp.toFixed(0)}°C
           </span>
           <span className={breachLevel > 50 ? 'text-red-500 font-bold' : ''}>
-            {t('taskMgr.breach')}: {breachLevel}%
+            {t('taskMgr.breach')}: {breachLevel.toFixed(1)}%
           </span>
           <span className={`font-bold ${
             hackerState === 'ATTACK' ? 'text-red-500' : 

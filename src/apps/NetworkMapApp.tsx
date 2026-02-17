@@ -2,6 +2,7 @@ import React from 'react';
 import XPWindow from '../components/XPWindow';
 import { useGameStore } from '../store/gameStore';
 import { useTranslation } from '../hooks/useTranslation';
+import NetworkMiniMap from '../components/NetworkMiniMap';
 
 const NetworkMapApp: React.FC = () => {
   const nodes = useGameStore(s => s.nodes);
@@ -31,7 +32,7 @@ const NetworkMapApp: React.FC = () => {
   };
 
   return (
-    <XPWindow windowId="network" title={t('network.title')} icon="🌐" width={500} height="380px"
+    <XPWindow windowId="network" title={t('network.title')} icon="🌐" width={560} height="520px"
       menuBar={<><span className="hover:bg-[#316ac5] hover:text-white px-2 cursor-default">{t('network.menuFile')}</span><span className="hover:bg-[#316ac5] hover:text-white px-2 cursor-default">{t('network.menuView')}</span><span className="hover:bg-[#316ac5] hover:text-white px-2 cursor-default">{t('network.menuTools')}</span></>}
     >
       <div className="bg-white h-full overflow-y-auto border border-gray-400 m-1">
@@ -41,6 +42,11 @@ const NetworkMapApp: React.FC = () => {
           <span className="text-[10px] text-gray-500">
             {t('network.blockedIPs')}: {blockedIPs.length}
           </span>
+        </div>
+
+        {/* Topology Mini-Map */}
+        <div className="bg-[#0a0a1a] flex items-center justify-center py-2 border-b border-gray-400">
+          <NetworkMiniMap />
         </div>
 
         {/* Node grid */}

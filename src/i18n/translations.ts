@@ -216,6 +216,7 @@ const en: Translations = {
   'desktop.cooler': 'System Case',
   'desktop.icq': 'ICQ',
   'desktop.defrag': 'Disk Defrag',
+  'desktop.topology': 'Network Map',
 
   // === Taskbar (new) ===
   'taskbar.cooler': 'System Case',
@@ -224,6 +225,8 @@ const en: Translations = {
   'taskbar.hardwareShop': 'Hardware Shop',
   'taskbar.firewallTetris': 'Firewall Tetris',
   'desktop.firewallTetris': 'Firewall Tetris',
+  'taskbar.achievements': 'Achievements',
+  'desktop.achievements': 'Achievements',
 
   // === Cooler / Thermal ===
   'cooler.title': 'System Case — Cooling',
@@ -287,6 +290,19 @@ const en: Translations = {
   'node.backupNAS': 'Backup NAS',
   'node.firewallGateway': 'Firewall Gateway',
   'node.workstation3': 'Workstation #3',
+
+  // === Clippy Tips ===
+  'clippy.beingHacked': 'Looks like you\'re being hacked! Try "scan" in cmd.exe to find threats. Or, you know, just panic. That works too.',
+  'clippy.cpuHot': '🔥 Your CPU is on fire! Well, almost. Open System Case and blow on the fans! Just kidding, click them.',
+  'clippy.dusty': 'Wow, when\'s the last time you cleaned this thing? Open System Case and deal with the dust bunnies!',
+  'clippy.spendSP': 'You\'re hoarding SP like a dragon hoards gold! Visit Windows Update and buy something useful!',
+  'clippy.blockIP': 'Pro tip: "ipconfig /block [IP]" blocks hackers. It\'s like a restraining order, but for nerds.',
+  'clippy.halfDead': '🚨 Breach at 50%+! The hackers are having a party in your system! Do something!!',
+  'clippy.gettingSerious': 'The hackers brought reinforcements. This is fine. Everything is fine. 🔥',
+  'clippy.tooManyProcs': 'Your Task Manager looks like a malware convention. Kill some processes, chief!',
+  'clippy.checkMail': '📧 You have unread emails! Some might be phishing though. Choose wisely...',
+  'clippy.welcome': 'It looks like you\'re defending a Windows XP system. Would you like help? (You probably need it.)',
+  'clippy.classic': 'Remember: in 2003, this was state-of-the-art security. 😌',
 };
 
 const uk: Translations = {
@@ -501,6 +517,7 @@ const uk: Translations = {
   'desktop.cooler': 'Системний блок',
   'desktop.icq': 'ICQ',
   'desktop.defrag': 'Дефрагментація',
+  'desktop.topology': 'Карта мережі',
 
   // === Taskbar (new) ===
   'taskbar.cooler': 'Сист. блок',
@@ -509,6 +526,8 @@ const uk: Translations = {
   'taskbar.hardwareShop': 'Магазин деталей',
   'taskbar.firewallTetris': 'Firewall Тетріс',
   'desktop.firewallTetris': 'Firewall Тетріс',
+  'taskbar.achievements': 'Досягнення',
+  'desktop.achievements': 'Досягнення',
 
   // === Cooler / Thermal ===
   'cooler.title': 'Системний блок — Охолодження',
@@ -572,6 +591,19 @@ const uk: Translations = {
   'node.backupNAS': 'Резервний NAS',
   'node.firewallGateway': 'Шлюз файрвола',
   'node.workstation3': 'Робоча станція #3',
+
+  // === Поради Кліппі ===
+  'clippy.beingHacked': 'Схоже, вас зламують! Спробуйте "scan" в cmd.exe щоб знайти загрози. Або просто панікуйте. Теж варіант.',
+  'clippy.cpuHot': '🔥 Ваш процесор горить! Ну, майже. Відкрийте Системний блок і подуйте на вентилятори! Жарт, клікніть.',
+  'clippy.dusty': 'Ого, коли ви останній раз чистили це? Відкрийте Системний блок і розберіться з пилом!',
+  'clippy.spendSP': 'Ви накопичуєте ОС як дракон золото! Завітайте в Оновлення Windows і купіть щось корисне!',
+  'clippy.blockIP': 'Порада: "ipconfig /block [IP]" блокує хакерів. Це як заборона наближатися, але для нердів.',
+  'clippy.halfDead': '🚨 Злам 50%+! Хакери влаштували вечірку у вашій системі! Зробіть щось!!',
+  'clippy.gettingSerious': 'Хакери привели підкріплення. Все нормально. Взагалі все ок. 🔥',
+  'clippy.tooManyProcs': 'Диспетчер завдань виглядає як конвенція малварі. Вбийте кілька процесів, шефе!',
+  'clippy.checkMail': '📧 У вас непрочитані листи! Деякі можуть бути фішингом. Обирайте мудро...',
+  'clippy.welcome': 'Схоже, ви захищаєте систему Windows XP. Потрібна допомога? (Мабуть вам вона потрібна.)',
+  'clippy.classic': 'Пам\'ятайте: у 2003-му це була найновіша система безпеки. 😌',
 };
 
 export const translations: Record<Language, Translations> = { en, uk };

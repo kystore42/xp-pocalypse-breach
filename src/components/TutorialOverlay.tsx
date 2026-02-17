@@ -4,23 +4,31 @@ import { useGameStore, TUTORIAL_STEPS } from '../store/gameStore';
 const TUTORIAL_TEXTS_EN = [
   '👋 Welcome, Administrator! Your Windows XP network is under attack by an AI hacker. Let me show you the basics.',
   '🔍 First, open cmd.exe and type "scan" to check for threats. This reveals compromised nodes and malware.',
-  '🌐 Check My Network Places to see your nodes. Watch for ⚡ probing and 💀 compromised status!',
+  '🌐 Check My Network Places to see your nodes and a live topology map. Watch for ⚡ probing and 💀 compromised status!',
   '🩹 When a node is compromised, type "patch node1" (using the node ID) in cmd.exe to fix it.',
   '📊 Open Task Manager to find malicious processes. Use "taskkill /pid [number]" to eliminate them.',
   '📧 Watch Outlook for phishing emails! Never click "Download" on suspicious attachments.',
   '⭐ You earn Stability Points (SP) for defending. Spend them in Windows Update for upgrades!',
-  '🎮 Good luck, Administrator! The AI adapts and gets smarter. Stay vigilant! Click "Got it" to begin.',
+  '🛒 Between waves, visit the Hardware Shop to buy CPU, RAM, and firewall upgrades with your SP.',
+  '🧱 Play Firewall Tetris! Block red malicious packets and let green legit ones through to reduce breach.',
+  '⚠️ Beware: breach level rises on its own over time! Even doing nothing will cost you — stay active!',
+  '💾 Open Settings to save your progress, load a previous game, or export/import save files.',
+  '🎮 Good luck, Administrator! Survive all 10 waves to win. Beat the game to unlock New Game+ mode!',
 ];
 
 const TUTORIAL_TEXTS_UK = [
   '👋 Ласкаво просимо, Адміністраторе! Вашу мережу Windows XP атакує ШІ-хакер. Ось основи.',
   '🔍 Спочатку відкрийте cmd.exe і введіть "scan" для перевірки загроз.',
-  '🌐 Перевірте Мережеве оточення, щоб бачити стан вузлів. Стежте за ⚡ та 💀!',
+  '🌐 Перевірте Мережеве оточення — карта топології та стан вузлів. Стежте за ⚡ та 💀!',
   '🩹 Коли вузол скомпрометований, введіть "patch node1" в cmd.exe для відновлення.',
   '📊 Відкрийте Диспетчер завдань для пошуку шкідливих процесів. "taskkill /pid [номер]".',
   '📧 Стежте за фішинговими листами в Outlook! Не натискайте на підозрілі вкладення.',
   '⭐ Заробляйте Очки стабільності (ОС) за захист. Витрачайте в Оновленнях Windows!',
-  '🎮 Удачі, Адміністраторе! ШІ адаптується. Будьте пильні! Натисніть "Зрозуміло".',
+  '🛒 Між хвилями відвідайте Магазин обладнання — купуйте ЦП, ОЗП та файрвол за ОС.',
+  '🧱 Грайте у Файрвол-тетріс! Блокуйте червоні пакети, пропускайте зелені для зниження пробою.',
+  '⚠️ Увага: рівень пробою зростає сам по собі! Навіть бездіяльність вам зашкодить — будьте активні!',
+  '💾 У Налаштуваннях можна зберегти прогрес, завантажити гру або експортувати/імпортувати збереження.',
+  '🎮 Удачі! Пройдіть усі 10 хвиль, щоб перемогти. Після перемоги відкриється режим Нова гра+!',
 ];
 
 const TutorialOverlay: React.FC = () => {

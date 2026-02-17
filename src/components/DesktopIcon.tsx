@@ -68,14 +68,14 @@ const DesktopIcon: React.FC<DesktopIconProps> = ({ label, icon, onOpen, position
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       style={style}
-      className="group flex flex-col items-center w-[75px] cursor-pointer text-center py-1 px-1 rounded-sm
+      className="group flex flex-col items-center w-[80px] cursor-pointer text-center py-1 px-1 rounded-sm
         hover:bg-blue-500/20 active:bg-blue-500/40"
     >
-      <div className="w-[48px] h-[48px] flex items-center justify-center text-[32px] drop-shadow-md">
+      <div className="w-[48px] h-[48px] flex items-center justify-center text-[36px] drop-shadow-md">
         {icon}
       </div>
-      <span className="text-white text-[11px] mt-[2px] leading-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] px-[2px]
-        group-hover:bg-[#316ac5] group-hover:text-white rounded-[2px] break-words max-w-[72px]">
+      <span className="text-white text-[12px] mt-[2px] leading-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] px-[2px]
+        group-hover:bg-[#316ac5] group-hover:text-white rounded-[2px] break-words max-w-[78px]">
         {label}
       </span>
     </div>

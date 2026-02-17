@@ -16,6 +16,7 @@ const TASKBAR_APPS: { id: WindowId; labelKey: string; icon: string }[] = [
   { id: 'defrag', labelKey: 'taskbar.defrag', icon: '💾' },
   { id: 'hardwareShop', labelKey: 'taskbar.hardwareShop', icon: '🔧' },
   { id: 'firewallTetris', labelKey: 'taskbar.firewallTetris', icon: '🧱' },
+  { id: 'achievements', labelKey: 'taskbar.achievements', icon: '🏆' },
 ];
 
 interface StartMenuProps {
@@ -68,7 +69,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ onClose }) => {
           <div className="w-[90px] bg-[#d3e5fa] py-1 border-l text-[9px]">
             <div className="px-2 py-1 text-gray-600">
               <div>🕐 {Math.floor(gameTime / 60)}m {gameTime % 60}s</div>
-              <div className="mt-2">📊 {t('startMenu.breach')}: {breachLevel}%</div>
+              <div className="mt-2">📊 {t('startMenu.breach')}: {breachLevel.toFixed(1)}%</div>
               <div>⭐ {t('startMenu.sp')}: {stabilityPoints}</div>
             </div>
           </div>

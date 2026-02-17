@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGameStore } from '../store/gameStore';
-
-const CLIPPY_FRAMES = ['📎', '🔗', '📎'];
+import AnimatedClippySVG from './AnimatedClippySVG';
+import type { ClippyExpression } from './AnimatedClippySVG';
 
 const ClippyHelper: React.FC = () => {
   const clippyVisible = useGameStore(s => s.clippyVisible);
@@ -21,23 +21,29 @@ const ClippyHelper: React.FC = () => {
 
   const borderColor = typeColors[clippyMessage.type] || typeColors.tip;
 
+  // Map message type to SVG expression
+  const expressionMap: Record<string, ClippyExpression> = {
+    tip: 'thinking',
+    warning: 'alert',
+    joke: 'happy',
+  };
+  const expression = expressionMap[clippyMessage.type] || 'idle';
+
   return (
-    <div className="absolute bottom-12 right-4 z-[7500] flex items-end gap-2 animate-bounce-in"
+    <div className="absolute bottom-12 right-4 z-[7500] flex items-end gap-2"
       style={{ animation: 'clippy-in 0.4s ease-out' }}>
-      {/* Clippy character */}
+      {/* Animated Clippy SVG character */}
       <div className="flex flex-col items-center">
-        <div className="text-4xl" style={{ animation: 'clippy-wiggle 2s ease-in-out infinite' }}>
-          📎
-        </div>
-        <div className="text-[8px] text-white/60 font-bold">Clippy</div>
+        <AnimatedClippySVG expression={expression} size={56} />
+        <div className="text-[8px] text-white/60 font-bold mt-[-4px]">Clippy</div>
       </div>
 
       {/* Speech bubble */}
-      <div className={`relative max-w-[220px] rounded-lg border-2 p-3 shadow-lg ${borderColor}`}>
+      <div className={`relative max-w-[280px] rounded-lg border-2 p-3 shadow-lg ${borderColor}`}>
         {/* Triangle pointer */}
         <div className="absolute -left-2 bottom-4 w-0 h-0 border-t-[6px] border-t-transparent border-r-[8px] border-r-yellow-400 border-b-[6px] border-b-transparent" />
 
-        <p className="text-[11px] text-gray-800 leading-snug mb-2">
+        <p className="text-[13px] text-gray-800 leading-snug mb-2">
           {clippyMessage.text}
         </p>
 

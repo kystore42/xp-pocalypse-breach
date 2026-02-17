@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import XPWindow from '../components/XPWindow';
 import { useGameStore } from '../store/gameStore';
+import { playKeyPress } from '../core/audio/soundManager';
 
 const COMMANDS = ['help', 'cls', 'ipconfig', 'netstat', 'tasklist', 'taskkill', 'scan', 'patch', 'systeminfo', 'regedit'];
 
@@ -82,7 +83,7 @@ const TerminalApp: React.FC = () => {
             id="cmd-input"
             type="text"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => { setInput(e.target.value); playKeyPress(); }}
             onKeyDown={handleKey}
             className="bg-transparent border-none outline-none text-[#c0c0c0] flex-1 font-mono text-[12px] caret-[#c0c0c0]"
             autoFocus

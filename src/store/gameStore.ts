@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Language } from '../i18n/translations';
 import { getTranslation } from '../i18n/translations';
+import { playAlert, playNotification, playProcessKill, playBreachPulse, playWaveComplete, playAchievement, playBSOD, playKeyPress } from '../core/audio/soundManager';
+import { saveGame as saveFn, loadGame as loadFn, exportSave as exportFn, importSave as importFn, downloadFile } from '../core/saveSystem';
 
 // ============== ТИПЫ ==============
 
@@ -144,7 +146,7 @@ export interface FWTetrisPacket {
   label: string;
 }
 
-export type WindowId = 'network' | 'cmd' | 'outlook' | 'recycleBin' | 'taskMgr' | 'updateCenter' | 'settings' | 'cooler' | 'icq' | 'defrag' | 'hardwareShop' | 'firewallTetris';
+export type WindowId = 'network' | 'cmd' | 'outlook' | 'recycleBin' | 'taskMgr' | 'updateCenter' | 'settings' | 'cooler' | 'icq' | 'defrag' | 'hardwareShop' | 'firewallTetris' | 'achievements';
 
 export interface WindowState {
   id: WindowId;
@@ -279,6 +281,9 @@ interface GameState {
   fwTetrisSpeed: number;
   fwTetrisTimeLeft: number;
 
+  // --- New Game+ ---
+  newGamePlusLevel: number;      // 0 = first run, 1+ = NG+ level
+
   // --- ACTIONS ---
   tick: () => void;
   openWindow: (id: WindowId) => void;
@@ -357,6 +362,15 @@ interface GameState {
   fwTetrisClick: (id: string) => void;
   fwTetrisTick: () => void;
 
+  // --- Save/Load ---
+  saveGame: () => boolean;
+  loadSave: () => boolean;
+  exportSave: () => void;
+  importSave: (json: string) => boolean;
+
+  // --- New Game+ ---
+  startNewGamePlus: () => void;
+
   resetGame: () => void;
 }
 
@@ -401,19 +415,22 @@ const initialHardware: HardwareItem[] = [
 ];
 
 const WAVES: WaveConfig[] = [
-  { id: 1, name: 'Reconnaissance', duration: 120, hackerPhase: 'RECON', aggressionBonus: 0, breachRateMultiplier: 0.5 },
-  { id: 2, name: 'Probing', duration: 150, hackerPhase: 'RECON', aggressionBonus: 1, breachRateMultiplier: 0.7 },
-  { id: 3, name: 'First Strike', duration: 150, hackerPhase: 'ATTACK', aggressionBonus: 2, breachRateMultiplier: 1.0 },
-  { id: 4, name: 'Escalation', duration: 180, hackerPhase: 'ATTACK', aggressionBonus: 3, breachRateMultiplier: 1.3 },
-  { id: 5, name: 'Full Assault', duration: 180, hackerPhase: 'ATTACK', aggressionBonus: 4, breachRateMultiplier: 1.5 },
-  { id: 6, name: 'APT — Advanced', duration: 200, hackerPhase: 'ATTACK', aggressionBonus: 5, breachRateMultiplier: 1.8 },
-  { id: 7, name: 'Final Boss', duration: 240, hackerPhase: 'ATTACK', aggressionBonus: 7, breachRateMultiplier: 2.0 },
+  { id: 1, name: 'Reconnaissance',     duration: 60,  hackerPhase: 'RECON',  aggressionBonus: 1, breachRateMultiplier: 1.0 },
+  { id: 2, name: 'Probing',            duration: 70,  hackerPhase: 'RECON',  aggressionBonus: 2, breachRateMultiplier: 1.3 },
+  { id: 3, name: 'First Strike',       duration: 80,  hackerPhase: 'ATTACK', aggressionBonus: 3, breachRateMultiplier: 1.6 },
+  { id: 4, name: 'Escalation',         duration: 80,  hackerPhase: 'ATTACK', aggressionBonus: 4, breachRateMultiplier: 1.9 },
+  { id: 5, name: 'Persistent Threat',  duration: 90,  hackerPhase: 'ATTACK', aggressionBonus: 5, breachRateMultiplier: 2.2 },
+  { id: 6, name: 'Full Assault',       duration: 90,  hackerPhase: 'ATTACK', aggressionBonus: 6, breachRateMultiplier: 2.5 },
+  { id: 7, name: 'Zero-Day Exploit',   duration: 100, hackerPhase: 'ATTACK', aggressionBonus: 7, breachRateMultiplier: 2.8 },
+  { id: 8, name: 'APT — Advanced',     duration: 100, hackerPhase: 'ATTACK', aggressionBonus: 8, breachRateMultiplier: 3.2 },
+  { id: 9, name: 'Cyber Armageddon',   duration: 110, hackerPhase: 'ATTACK', aggressionBonus: 9, breachRateMultiplier: 3.6 },
+  { id: 10, name: 'Final Boss',        duration: 120, hackerPhase: 'ATTACK', aggressionBonus: 10, breachRateMultiplier: 4.0 },
 ];
 
 const DIFFICULTY_CONFIG: Record<Difficulty, { hackerSpeedMult: number; startingSP: number; nodeCount: number; breachMult: number }> = {
-  easy:   { hackerSpeedMult: 0.6, startingSP: 30, nodeCount: 4, breachMult: 0.7 },
+  easy:   { hackerSpeedMult: 0.7, startingSP: 25, nodeCount: 4, breachMult: 0.8 },
   normal: { hackerSpeedMult: 1.0, startingSP: 0,  nodeCount: 6, breachMult: 1.0 },
-  hard:   { hackerSpeedMult: 1.5, startingSP: 0,  nodeCount: 8, breachMult: 1.3 },
+  hard:   { hackerSpeedMult: 1.4, startingSP: 0,  nodeCount: 8, breachMult: 1.4 },
 };
 
 const hardNodes: NetworkNode[] = [
@@ -430,7 +447,7 @@ const initialAchievements: Achievement[] = [
   { id: 'all_upgrades', name: 'Fully Loaded', description: 'Purchase all software upgrades', icon: '💎', reward: 50, unlocked: false, check: 'all_upgrades' },
   { id: 'patch_5', name: 'Patcher', description: 'Patch 5 compromised nodes', icon: '🩹', reward: 15, unlocked: false, check: 'patch_5' },
   { id: 'wave_3', name: 'Wave Surfer', description: 'Complete Wave 3', icon: '🌊', reward: 20, unlocked: false, check: 'wave_3' },
-  { id: 'wave_7', name: 'Unbreakable', description: 'Complete all 7 waves', icon: '🏆', reward: 100, unlocked: false, check: 'wave_7' },
+  { id: 'wave_7', name: 'Unbreakable', description: 'Complete all 10 waves', icon: '🏆', reward: 100, unlocked: false, check: 'wave_7' },
   { id: 'bsod_win', name: 'Blue Screen Hero', description: 'Survive a BSOD minigame', icon: '💙', reward: 15, unlocked: false, check: 'bsod_win' },
 ];
 
@@ -442,6 +459,10 @@ const TUTORIAL_STEPS = [
   { key: 'tutorial.killProcesses', highlight: 'taskMgr' },
   { key: 'tutorial.watchOutlook', highlight: 'outlook' },
   { key: 'tutorial.earnSP', highlight: 'updateCenter' },
+  { key: 'tutorial.hardwareShop', highlight: 'hardwareShop' },
+  { key: 'tutorial.firewallTetris', highlight: 'firewallTetris' },
+  { key: 'tutorial.passiveBreach', highlight: null },
+  { key: 'tutorial.saveLoad', highlight: 'settings' },
   { key: 'tutorial.goodLuck', highlight: null },
 ];
 
@@ -460,6 +481,7 @@ const initialWindows: Record<WindowId, WindowState> = {
   defrag: { id: 'defrag', isOpen: false, zIndex: 10, position: { x: 100, y: 50 }, minimized: false },
   hardwareShop: { id: 'hardwareShop', isOpen: false, zIndex: 10, position: { x: 160, y: 80 }, minimized: false },
   firewallTetris: { id: 'firewallTetris', isOpen: false, zIndex: 10, position: { x: 140, y: 60 }, minimized: false },
+  achievements: { id: 'achievements', isOpen: false, zIndex: 10, position: { x: 220, y: 90 }, minimized: false },
 };
 
 let notifCounter = 0;
@@ -582,6 +604,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   fwTetrisSpeed: 1,
   fwTetrisTimeLeft: 0,
 
+  // --- New Game+ ---
+  newGamePlusLevel: 0,
+
   // ============== ACTIONS ==============
 
   tick: () => {
@@ -611,7 +636,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Dust accumulates slowly — case fan reduces rate
     const dustRate = state.minerActive ? 0.3 : 0.05;
     const dustMultiplier = Math.max(0.1, 1 - caseFanLevel * 0.2);
-    const newDust = Math.min(100, state.dustLevel + dustRate * dustMultiplier);
+    const newDust = Math.round(Math.min(100, state.dustLevel + dustRate * dustMultiplier) * 100) / 100;
 
     // Visual chaos thresholds
     const shake = state.breachLevel > 40;
@@ -626,12 +651,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       breachReduction = 1;
     }
 
+    // Passive breach — the network is under constant pressure
+    const passiveBreachRate = 0.15 * wave.breachRateMultiplier * diffConfig.breachMult;
+    const psuLevel = state.hardware.find(h => h.id === 'psu_upgrade')?.level ?? 0;
+    const passiveResistance = Math.max(0.3, 1 - psuLevel * 0.05);
+    const passiveBreach = passiveBreachRate * passiveResistance;
+
     // AI decoy slows down brute
     const hasDecoy = state.upgrades.find(u => u.id === 'ai_decoy')?.purchased;
     const bruteMultiplier = hasDecoy ? 0.5 : 1;
 
     // Game over check — trigger BSOD minigame instead of instant death
-    const breachAfterReduction = Math.max(0, state.breachLevel - breachReduction);
+    const breachAfterReduction = Math.round(Math.max(0, state.breachLevel + passiveBreach - breachReduction) * 100) / 100;
     const shouldTriggerBSOD = breachAfterReduction >= state.maxBreachLevel && !state.bsodMinigame;
 
     // Autocomplete prompt: when player earns 10+ SP and hasn't bought/been prompted
@@ -669,7 +700,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       gameTime: newGameTime,
       hackerAggression: aggression,
       cpuTemp: Math.round(newTemp * 10) / 10,
-      dustLevel: newDust,
+      dustLevel: Math.round(newDust * 100) / 100,
       screenShake: shake,
       windowTrails: trails,
       wallpaperCorrupted: wallpaper,
@@ -703,15 +734,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       get().checkAchievements();
     }
 
-    // Clippy tips (every 60s if not disabled)
-    if (!state.clippyDisabled && newGameTime % 60 === 30 && !state.clippyVisible) {
+    // Clippy tips (every 25s if not disabled)
+    if (!state.clippyDisabled && newGameTime % 25 === 12 && !state.clippyVisible) {
+      const lang = get().language;
       const tips = [
-        { cond: state.breachLevel > 30, text: 'Looks like you\'re being hacked! Try using "scan" in cmd.exe to find threats.', type: 'tip' as const },
-        { cond: state.minerActive, text: 'Your CPU is overheating! Open System Case and click the fans!', type: 'warning' as const },
-        { cond: state.dustLevel > 50, text: 'Dust buildup detected! Click fans in System Case to clean.', type: 'tip' as const },
-        { cond: state.stabilityPoints > 40 && state.upgrades.some(u => !u.purchased), text: 'You have SP to spend! Check Windows Update for upgrades.', type: 'tip' as const },
-        { cond: newGameTime > 120, text: 'Did you know? You can block hacker IPs with "ipconfig /block [IP]"!', type: 'joke' as const },
-        { cond: true, text: 'It looks like you\'re defending a Windows XP system. Would you like help?', type: 'joke' as const },
+        { cond: state.breachLevel > 25, text: getTranslation(lang, 'clippy.beingHacked'), type: 'tip' as const },
+        { cond: state.minerActive, text: getTranslation(lang, 'clippy.cpuHot'), type: 'warning' as const },
+        { cond: state.dustLevel > 50, text: getTranslation(lang, 'clippy.dusty'), type: 'tip' as const },
+        { cond: state.stabilityPoints > 30 && state.upgrades.some(u => !u.purchased), text: getTranslation(lang, 'clippy.spendSP'), type: 'tip' as const },
+        { cond: newGameTime > 60, text: getTranslation(lang, 'clippy.blockIP'), type: 'joke' as const },
+        { cond: state.breachLevel > 50, text: getTranslation(lang, 'clippy.halfDead'), type: 'warning' as const },
+        { cond: state.currentWave >= 3, text: getTranslation(lang, 'clippy.gettingSerious'), type: 'warning' as const },
+        { cond: state.processes.filter(p => p.isMalicious).length > 2, text: getTranslation(lang, 'clippy.tooManyProcs'), type: 'tip' as const },
+        { cond: state.unreadCount > 3, text: getTranslation(lang, 'clippy.checkMail'), type: 'tip' as const },
+        { cond: newGameTime < 20, text: getTranslation(lang, 'clippy.welcome'), type: 'joke' as const },
+        { cond: true, text: getTranslation(lang, 'clippy.classic'), type: 'joke' as const },
       ];
       const applicable = tips.filter(t => t.cond);
       if (applicable.length > 0) {
@@ -725,6 +762,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       const lang = get().language;
       get().addNotification({ text: getTranslation(lang, 'notif.waveComplete', { wave: state.currentWave + 1 }), type: 'success' });
       get().addStabilityPoints(15 + state.currentWave * 5);
+      playWaveComplete();
+    }
+
+    // Breach pulse sound — every 10s when breach > 60%
+    if (newGameTime % 10 === 0 && get().breachLevel > 60) {
+      playBreachPulse();
     }
   },
 
@@ -925,7 +968,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           if (malware.length > 0) lines.push({ text: t('cmd.scanMalware', { count: malware.length }), type: 'error' });
           if (binMalware.length > 0) lines.push({ text: t('cmd.scanBinMalware', { count: binMalware.length }), type: 'warning' });
         }
-        lines.push({ text: t('cmd.scanBreachLevel', { level: state.breachLevel }), type: state.breachLevel > 50 ? 'error' : 'output' });
+        lines.push({ text: t('cmd.scanBreachLevel', { level: state.breachLevel.toFixed(1) }), type: state.breachLevel > 50 ? 'error' : 'output' });
         break;
       }
 
@@ -956,7 +999,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           { text: 'OS Name:             Microsoft Windows XP Professional', type: 'output' },
           { text: 'OS Version:          5.1.2600 Service Pack 3', type: 'output' },
           { text: `CPU Temperature:     ${state.cpuTemp.toFixed(1)}°C`, type: state.cpuTemp > 70 ? 'error' : 'output' },
-          { text: `Breach Level:        ${state.breachLevel}%`, type: state.breachLevel > 50 ? 'error' : 'output' },
+          { text: `Breach Level:        ${state.breachLevel.toFixed(1)}%`, type: state.breachLevel > 50 ? 'error' : 'output' },
           { text: `Hacker State:        ${state.hackerState}`, type: 'warning' },
           { text: `Stability Points:    ${state.stabilityPoints}`, type: 'output' },
           { text: `Blocked IPs:         ${state.blockedIPs.length}`, type: 'output' },
@@ -1006,6 +1049,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     set(s => ({
       notifications: [...s.notifications, { ...n, id: `notif_${notifCounter}`, time: Date.now(), dismissed: false }],
     }));
+    if (n.type === 'error' || n.type === 'warning') {
+      playAlert();
+    } else {
+      playNotification();
+    }
   },
   dismissNotification: (id) => set(s => ({
     notifications: s.notifications.map(n => n.id === id ? { ...n, dismissed: true } : n),
@@ -1104,11 +1152,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   addBreachLevel: (amount) => set(s => {
     const psuLevel = s.hardware.find(h => h.id === 'psu_upgrade')?.level ?? 0;
     const resistance = 1 - psuLevel * 0.05; // 5% reduction per level
-    const reduced = amount * Math.max(0.5, resistance);
-    return { breachLevel: Math.min(s.maxBreachLevel, s.breachLevel + reduced) };
+    const wave = WAVES[s.currentWave] || WAVES[WAVES.length - 1];
+    const diffConfig = DIFFICULTY_CONFIG[s.difficulty];
+    const ngMult = 1 + (s.newGamePlusLevel || 0) * 0.15; // +15% per NG+ level
+    const reduced = amount * Math.max(0.5, resistance) * wave.breachRateMultiplier * diffConfig.breachMult * ngMult;
+    return { breachLevel: Math.round(Math.min(s.maxBreachLevel, s.breachLevel + reduced) * 100) / 100 };
   }),
   removeBreachLevel: (amount) => set(s => ({
-    breachLevel: Math.max(0, s.breachLevel - amount),
+    breachLevel: Math.round(Math.max(0, s.breachLevel - amount) * 100) / 100,
   })),
   addStabilityPoints: (amount) => set(s => ({
     stabilityPoints: s.stabilityPoints + amount,
@@ -1124,6 +1175,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       minerActive: isMiner ? false : s.minerActive,
       totalProcessesKilled: wasMalicious ? s.totalProcessesKilled + 1 : s.totalProcessesKilled,
     }));
+    if (wasMalicious) {
+      playProcessKill();
+    }
     if (isMiner) {
       get().addNotification({ 
         text: getTranslation(get().language, 'notif.minerKilled'), 
@@ -1158,6 +1212,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // --- BSOD Mini-game ---
   startBSODMinigame: () => {
+    playBSOD();
     const errors: BSODError[] = [];
     const codes = [
       'IRQL_NOT_LESS_OR_EQUAL', 'PAGE_FAULT', 'KERNEL_PANIC',
@@ -1210,7 +1265,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = get();
     if (!state.bsodMinigame) return;
 
-    const timeLeft = state.bsodTimeLeft - 0.05; // called at ~20fps → 1s = 20 ticks
+    const timeLeft = Math.round((state.bsodTimeLeft - 0.05) * 100) / 100; // called at ~20fps → 1s = 20 ticks
 
     if (timeLeft <= 0) {
       // Failed — real game over
@@ -1373,7 +1428,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         case 'all_upgrades': earned = state.upgrades.every(u => u.purchased); break;
         case 'patch_5': earned = false; break; // tracked separately
         case 'wave_3': earned = state.wavesCompleted >= 3; break;
-        case 'wave_7': earned = state.wavesCompleted >= 7; break;
+        case 'wave_7': earned = state.wavesCompleted >= WAVES.length; break;
         case 'bsod_win': earned = false; break; // triggered on BSOD success
       }
       return earned ? { ...a, unlocked: true } : a;
@@ -1392,6 +1447,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           text: `🏆 Achievement: "${a.name}"! +${a.reward} SP`,
           type: 'success',
         });
+        playAchievement();
       });
     }
   },
@@ -1447,12 +1503,14 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     if (packet.type === 'bad') {
       // Correctly blocked! +points
+      playProcessKill();
       set(s => ({
         fwTetrisPackets: s.fwTetrisPackets.filter(p => p.id !== id),
         fwTetrisScore: s.fwTetrisScore + 10,
       }));
     } else {
       // Blocked a good packet — penalty
+      playAlert();
       set(s => ({
         fwTetrisPackets: s.fwTetrisPackets.filter(p => p.id !== id),
         fwTetrisMissed: s.fwTetrisMissed + 1,
@@ -1465,7 +1523,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!state.fwTetrisActive) return;
 
     const dt = 0.05; // ~20fps
-    let timeLeft = state.fwTetrisTimeLeft - dt;
+    let timeLeft = Math.round((state.fwTetrisTimeLeft - dt) * 100) / 100;
 
     if (timeLeft <= 0) {
       // End game
@@ -1513,6 +1571,72 @@ export const useGameStore = create<GameState>((set, get) => ({
       fwTetrisTimeLeft: timeLeft,
       fwTetrisMissed: state.fwTetrisMissed + missedBad,
     });
+  },
+
+  // --- Save/Load ---
+  saveGame: () => {
+    const state = get() as unknown as Record<string, unknown>;
+    const success = saveFn(state);
+    if (success) {
+      const lang = get().language;
+      get().addNotification({ text: lang === 'uk' ? '💾 Гру збережено!' : '💾 Game saved!', type: 'success' });
+    }
+    return success;
+  },
+
+  loadSave: () => {
+    const data = loadFn();
+    if (!data) return false;
+    set(data.state as Partial<GameState>);
+    return true;
+  },
+
+  exportSave: () => {
+    const state = get() as unknown as Record<string, unknown>;
+    const json = exportFn(state);
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    downloadFile(json, `xp-pocalypse-save-${ts}.json`);
+    const lang = get().language;
+    get().addNotification({ text: lang === 'uk' ? '📤 Збереження експортовано' : '📤 Save exported', type: 'info' });
+  },
+
+  importSave: (json: string) => {
+    const data = importFn(json);
+    if (!data) return false;
+    set(data.state as Partial<GameState>);
+    const lang = get().language;
+    get().addNotification({ text: lang === 'uk' ? '📥 Збереження імпортовано!' : '📥 Save imported!', type: 'success' });
+    return true;
+  },
+
+  // --- New Game+ ---
+  startNewGamePlus: () => {
+    const state = get();
+    const ngLevel = (state.newGamePlusLevel || 0) + 1;
+    const keptAchievements = state.achievements.map(a => ({ ...a }));
+    const keptLang = state.language;
+    const keptDiff = state.difficulty;
+    const keptClippyDisabled = state.clippyDisabled;
+    // Bonus SP from NG+: 10 * level
+    const bonusSP = ngLevel * 10;
+
+    // Reset game first
+    get().resetGame();
+
+    // Apply NG+ modifiers
+    set({
+      newGamePlusLevel: ngLevel,
+      achievements: keptAchievements,
+      language: keptLang,
+      difficulty: keptDiff,
+      clippyDisabled: keptClippyDisabled,
+      stabilityPoints: bonusSP,
+      tutorialStep: -1,
+      tutorialActive: false,
+    });
+
+    // Re-apply difficulty with NG+ scaling
+    get().setDifficulty(keptDiff);
   },
 
   resetGame: () => {
@@ -1599,6 +1723,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       fwTetrisMissed: 0,
       fwTetrisSpeed: 1,
       fwTetrisTimeLeft: 0,
+      // New Game+ reset
+      newGamePlusLevel: 0,
     });
     // Apply difficulty settings
     const diff = get().difficulty;

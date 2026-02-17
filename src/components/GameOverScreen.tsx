@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useTranslation } from '../hooks/useTranslation';
+import { playBSOD } from '../core/audio/soundManager';
 
 const GameOverScreen: React.FC = () => {
   const gameOver = useGameStore(s => s.gameOver);
@@ -24,6 +25,11 @@ const GameOverScreen: React.FC = () => {
     }, 50); // ~20 FPS
     return () => clearInterval(interval);
   }, [bsodMinigame, bsodTick]);
+
+  // Play BSOD crash sound on game over
+  useEffect(() => {
+    if (gameOver) playBSOD();
+  }, [gameOver]);
 
   // --- BSOD MINI-GAME MODE ---
   if (bsodMinigame) {

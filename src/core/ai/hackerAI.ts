@@ -1,4 +1,4 @@
-import { useGameStore, type HackerState } from '../../store/gameStore';
+import { useGameStore, type HackerState, WAVES, DIFFICULTY_CONFIG } from '../../store/gameStore';
 import { getTranslation } from '../../i18n/translations';
 
 function t(key: string, params?: Record<string, string | number>) {
@@ -69,23 +69,45 @@ export function hackerTick() {
     hackerAdminAccess, breachLevel
   } = state;
 
+  // Wave-based scaling: later waves make everything faster
+  const wave = WAVES[state.currentWave] || WAVES[WAVES.length - 1];
+  const waveScale = wave.breachRateMultiplier; // 0.8 → 3.5
+  const diffConfig = DIFFICULTY_CONFIG[state.difficulty];
+
   // === СТЕЙТ-МАШИНА ===
   switch (hackerState) {
     case 'RECON':
-      handleRecon(state);
+      handleRecon(state, waveScale, diffConfig.hackerSpeedMult);
       break;
     case 'ATTACK':
-      handleAttack(state);
+      handleAttack(state, waveScale, diffConfig.hackerSpeedMult);
       break;
     case 'HIDE':
-      handleHide(state);
+      handleHide(state, waveScale);
       break;
   }
 
   // === ПЕРИОДИЧЕСКИЕ СОБЫТИЯ ===
 
-  // Фишинговые письма каждые 45-90 секунд
-  if (gameTime > 10 && gameTime % (90 - hackerAggression * 5) === 0) {
+  // First-contact alert on wave start — immediate engagement
+  if (gameTime === 2) {
+    const lang = useGameStore.getState().language;
+    useGameStore.getState().addNotification({ 
+      text: lang === 'uk' 
+        ? '🚨 Увага! Виявлено підозрілу мережеву активність! Перевірте cmd.exe та Мережеве оточення!' 
+        : '🚨 Alert! Suspicious network activity detected! Check cmd.exe and My Network!', 
+      type: 'warning' 
+    });
+  }
+
+  // Early phishing at tick 4 — hook the player immediately
+  if (gameTime === 4) {
+    sendPhishingEmail();
+  }
+
+  // Фишинговые письма — faster in later waves
+  const phishInterval = Math.max(8, Math.floor((40 - hackerAggression * 4) / waveScale));
+  if (gameTime > 5 && gameTime % phishInterval === 0) {
     sendPhishingEmail();
   }
 
@@ -94,40 +116,46 @@ export function hackerTick() {
     sendSystemEmail();
   }
 
-  // Подброс малвари в корзину каждые 60-120 секунд
-  if (gameTime > 30 && gameTime % (120 - hackerAggression * 8) === 0) {
+  // Подброс малвари в корзину — faster in later waves
+  const malwareInterval = Math.max(6, Math.floor((50 - hackerAggression * 5) / waveScale));
+  if (gameTime > 8 && gameTime % malwareInterval === 0) {
     dropMalwareInBin();
   }
 
-  // Спавн скрытых процессов при высоком уровне взлома
-  if (breachLevel > 30 && gameTime % (60 - hackerAggression * 4) === 0) {
+  // Спавн скрытых процессов — lower breach threshold in later waves
+  const procBreachThreshold = Math.max(5, 15 - state.currentWave * 2);
+  const procInterval = Math.max(4, Math.floor((25 - hackerAggression * 2) / waveScale));
+  if (breachLevel > procBreachThreshold && gameTime % procInterval === 0) {
     spawnMaliciousProcess();
   }
 
   // Попапы ошибок при высоком breach level
-  if (breachLevel > 50 && gameTime % (Math.max(3, 15 - hackerAggression)) === 0) {
+  const errorThreshold = Math.max(15, 35 - state.currentWave * 3);
+  if (breachLevel > errorThreshold && gameTime % (Math.max(2, Math.floor((12 - hackerAggression) / waveScale))) === 0) {
     spawnErrorPopup();
   }
 
   // Админ-доступ: двигать окна, создавать хаос
-  if (hackerAdminAccess && gameTime % 10 === 0 && breachLevel > 40) {
+  if (hackerAdminAccess && gameTime % Math.max(3, Math.floor(10 / waveScale)) === 0 && breachLevel > 30) {
     adminChaos();
   }
 
   // === NEW MECHANICS ===
 
-  // Deploy crypto miner when breach > 25 and not yet active
-  if (breachLevel > 25 && !state.minerActive && gameTime % 90 === 0 && Math.random() < 0.4) {
+  // Deploy crypto miner — lower threshold in later waves
+  const minerThreshold = Math.max(10, 25 - state.currentWave * 2);
+  if (breachLevel > minerThreshold && !state.minerActive && gameTime % Math.max(30, Math.floor(70 / waveScale)) === 0 && Math.random() < 0.5) {
     spawnCryptoMiner();
   }
 
-  // ICQ Spam attack every 80-150 seconds
-  if (gameTime > 30 && gameTime % (150 - hackerAggression * 8) === 0 && Math.random() < 0.5) {
+  // ICQ Spam attack — faster in later waves
+  const icqInterval = Math.max(8, Math.floor((60 - hackerAggression * 5) / waveScale));
+  if (gameTime > 10 && gameTime % icqInterval === 0 && Math.random() < 0.6) {
     triggerICQSpam();
   }
 
-  // Trigger defrag need when breach > 50 (once)
-  if (breachLevel > 50 && gameTime % 120 === 0 && Math.random() < 0.3) {
+  // Trigger defrag need
+  if (breachLevel > Math.max(20, 50 - state.currentWave * 5) && gameTime % Math.max(30, Math.floor(90 / waveScale)) === 0 && Math.random() < 0.4) {
     useGameStore.getState().addNotification({ 
       text: t('notif.defragNeeded') || '💾 Hard drive fragmentation detected! Open Disk Defragmenter!', 
       type: 'warning' 
@@ -139,18 +167,19 @@ export function hackerTick() {
   if (hasFirewall && hackerState === 'ATTACK' && Math.random() < 0.2) {
     useGameStore.setState({ 
       hackerState: 'HIDE' as HackerState, 
-      attackCooldown: 10,
+      attackCooldown: Math.max(3, Math.floor(10 / waveScale)),
       bruteforceProgress: Math.max(0, bruteforceProgress - 10),
     });
     useGameStore.getState().addNotification({ text: t('notif.firewallBlocked'), type: 'success' });
   }
 }
 
-function handleRecon(state: ReturnType<typeof useGameStore.getState>) {
+function handleRecon(state: ReturnType<typeof useGameStore.getState>, waveScale: number, speedMult: number) {
   const { gameTime, hackerAggression, nodes, blockedIPs } = state;
 
-  // Разведка: выбор цели
-  if (gameTime % (20 - hackerAggression * 2) === 0) {
+  // Разведка: выбор цели — faster scanning in later waves
+  const reconInterval = Math.max(2, Math.floor((8 - hackerAggression) / (waveScale * speedMult)));
+  if (gameTime % reconInterval === 0) {
     // Найти незаблокированный, незахваченный узел для атаки
     const targets = nodes.filter(n => 
       n.status === 'secure' && !blockedIPs.includes(n.ip)
@@ -179,7 +208,7 @@ function handleRecon(state: ReturnType<typeof useGameStore.getState>) {
   }
 }
 
-function handleAttack(state: ReturnType<typeof useGameStore.getState>) {
+function handleAttack(state: ReturnType<typeof useGameStore.getState>, waveScale: number, speedMult: number) {
   const { 
     currentTargetNodeId, bruteforceProgress, nodes, hackerAggression, 
     blockedIPs 
@@ -197,7 +226,7 @@ function handleAttack(state: ReturnType<typeof useGameStore.getState>) {
   if (blockedIPs.includes(targetNode.ip)) {
     useGameStore.setState({ 
       hackerState: 'HIDE' as HackerState, 
-      attackCooldown: 15,
+      attackCooldown: Math.max(5, Math.floor(15 / waveScale)),
       currentTargetNodeId: null,
       bruteforceProgress: 0,
       nodes: nodes.map(n => n.id === currentTargetNodeId ? { ...n, status: 'secure' as const } : n),
@@ -205,10 +234,10 @@ function handleAttack(state: ReturnType<typeof useGameStore.getState>) {
     return;
   }
 
-  // Прогресс брутфорса зависит от сложности узла
+  // Прогресс брутфорса зависит от сложности узла — scales with wave & difficulty
   const hasDecoy = state.upgrades.find(u => u.id === 'ai_decoy')?.purchased;
-  const bruteSpeed = (hackerAggression * 0.8) / targetNode.difficulty * (hasDecoy ? 0.5 : 1);
-  const newProgress = Math.min(100, bruteforceProgress + bruteSpeed);
+  const bruteSpeed = (hackerAggression * 0.8) / targetNode.difficulty * (hasDecoy ? 0.5 : 1) * waveScale * speedMult;
+  const newProgress = Math.round(Math.min(100, bruteforceProgress + bruteSpeed) * 100) / 100;
 
   // Логи в терминал
   if (Math.random() < 0.3) {
@@ -225,10 +254,10 @@ function handleAttack(state: ReturnType<typeof useGameStore.getState>) {
       hackerState: 'HIDE' as HackerState,
       currentTargetNodeId: null,
       bruteforceProgress: 0,
-      attackCooldown: 20,
+      attackCooldown: Math.max(8, Math.floor(20 / waveScale)),
     });
 
-    useGameStore.getState().addBreachLevel(15);
+    useGameStore.getState().addBreachLevel(15 + state.currentWave * 2);
     useGameStore.getState().addNotification({ 
       text: t('notif.nodeCompromised', { name: targetNode.name, ip: targetNode.ip }), 
       type: 'error' 
@@ -239,15 +268,17 @@ function handleAttack(state: ReturnType<typeof useGameStore.getState>) {
     });
   } else {
     useGameStore.setState({ bruteforceProgress: newProgress });
-    useGameStore.getState().addBreachLevel(0.1);
+    useGameStore.getState().addBreachLevel(0.3 + state.currentWave * 0.1);
   }
 }
 
-function handleHide(state: ReturnType<typeof useGameStore.getState>) {
+function handleHide(state: ReturnType<typeof useGameStore.getState>, waveScale: number) {
   const { attackCooldown } = state;
   
+  // Cooldown decreases faster in later waves
+  const cooldownSpeed = Math.max(1, Math.ceil(waveScale));
   if (attackCooldown > 0) {
-    useGameStore.setState({ attackCooldown: attackCooldown - 1 });
+    useGameStore.setState({ attackCooldown: Math.max(0, attackCooldown - cooldownSpeed) });
   } else {
     useGameStore.setState({ hackerState: 'RECON' as HackerState });
   }

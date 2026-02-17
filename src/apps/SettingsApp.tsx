@@ -4,6 +4,7 @@ import { useGameStore, type Difficulty } from '../store/gameStore';
 import { useTranslation } from '../hooks/useTranslation';
 import type { Language } from '../i18n/translations';
 import { setMuted, isSoundMuted } from '../core/audio/soundManager';
+import { hasSave, getSaveInfo } from '../core/saveSystem';
 
 const SettingsApp: React.FC = () => {
   const { t, language } = useTranslation();
@@ -12,7 +13,13 @@ const SettingsApp: React.FC = () => {
   const setDifficulty = useGameStore(s => s.setDifficulty);
   const clippyDisabled = useGameStore(s => s.clippyDisabled);
   const disableClippy = useGameStore(s => s.disableClippy);
+  const saveGameAction = useGameStore(s => s.saveGame);
+  const loadSaveAction = useGameStore(s => s.loadSave);
+  const exportSaveAction = useGameStore(s => s.exportSave);
+  const importSaveAction = useGameStore(s => s.importSave);
+  const newGamePlusLevel = useGameStore(s => s.newGamePlusLevel);
   const [muted, setMutedState] = React.useState(isSoundMuted());
+  const [saveExists, setSaveExists] = React.useState(hasSave());
 
   const handleMute = () => {
     const next = !muted;
@@ -20,8 +27,36 @@ const SettingsApp: React.FC = () => {
     setMuted(next);
   };
 
+  const handleSave = () => {
+    saveGameAction();
+    setSaveExists(true);
+  };
+
+  const handleLoad = () => {
+    if (loadSaveAction()) {
+      setSaveExists(true);
+    }
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const json = reader.result as string;
+        importSaveAction(json);
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   return (
-    <XPWindow windowId="settings" title={t('settings.title')} icon="⚙️" width={400} height="420px">
+    <XPWindow windowId="settings" title={t('settings.title')} icon="⚙️" width={400} height="560px">
       <div className="h-full flex flex-col">
         {/* Section header */}
         <div className="bg-gradient-to-r from-[#e8e4d8] to-[#d6d2c2] border-b p-2">
@@ -140,6 +175,55 @@ const SettingsApp: React.FC = () => {
                 {language === 'uk' ? '🚫 Вимкнути (10 SP)' : '🚫 Disable (10 SP)'}
               </button>
             )}
+          </div>
+
+          {/* Save / Load */}
+          <div className="mb-4">
+            <label className="block text-[12px] font-bold text-gray-700 mb-1">
+              💾 {language === 'uk' ? 'Збереження' : 'Save / Load'}
+            </label>
+            {newGamePlusLevel > 0 && (
+              <p className="text-[10px] text-purple-600 font-bold mb-1">NG+{newGamePlusLevel}</p>
+            )}
+            {saveExists && (() => {
+              const info = getSaveInfo();
+              return info ? (
+                <p className="text-[10px] text-gray-500 mb-2">
+                  {language === 'uk' ? 'Збережено' : 'Saved'}: {language === 'uk' ? 'Хвиля' : 'Wave'} {info.wave} · {info.difficulty} · {new Date(info.timestamp!).toLocaleString()}
+                </p>
+              ) : null;
+            })()}
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                onClick={handleSave}
+                className="px-2 py-1.5 text-[10px] font-bold rounded border border-green-400 bg-green-50 text-green-700 hover:bg-green-100 transition-all"
+              >
+                💾 {language === 'uk' ? 'Зберегти' : 'Save'}
+              </button>
+              <button
+                onClick={handleLoad}
+                disabled={!saveExists}
+                className={`px-2 py-1.5 text-[10px] font-bold rounded border transition-all ${
+                  saveExists
+                    ? 'border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                📂 {language === 'uk' ? 'Завантажити' : 'Load'}
+              </button>
+              <button
+                onClick={() => exportSaveAction()}
+                className="px-2 py-1.5 text-[10px] font-bold rounded border border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition-all"
+              >
+                📤 {language === 'uk' ? 'Експорт' : 'Export'}
+              </button>
+              <button
+                onClick={handleImport}
+                className="px-2 py-1.5 text-[10px] font-bold rounded border border-orange-400 bg-orange-50 text-orange-700 hover:bg-orange-100 transition-all"
+              >
+                📥 {language === 'uk' ? 'Імпорт' : 'Import'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

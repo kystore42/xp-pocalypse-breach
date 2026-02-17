@@ -55,7 +55,7 @@ const FirewallTetrisApp: React.FC = () => {
   }
 
   const minutes = Math.floor(fwTetrisTimeLeft / 60);
-  const seconds = fwTetrisTimeLeft % 60;
+  const seconds = Math.floor(fwTetrisTimeLeft % 60);
 
   return (
     <XPWindow windowId="firewallTetris" title="🧱 Firewall Tetris" icon="🧱" width={300} height="480px">
