@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Tahoma&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === XP FONTS === */
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: black;
+  font-family: Tahoma, 'Segoe UI', sans-serif;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+}
+
+/* === SCROLLBAR XP STYLE === */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+::-webkit-scrollbar-track {
+  background: #f1efe2;
+  border: 1px solid #aca899;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #ece9d8, #d6d3c5);
+  border: 1px solid #aca899;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #d6d3c5, #c0bdb0);
+}
+::-webkit-scrollbar-button {
+  background: #ece9d8;
+  border: 1px solid #aca899;
+  height: 16px;
+  width: 16px;
+}
+
+/* === ANIMATIONS === */
+@keyframes screenShake {
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-2px, 1px); }
+  20% { transform: translate(2px, -1px); }
+  30% { transform: translate(-1px, 2px); }
+  40% { transform: translate(1px, -2px); }
+  50% { transform: translate(-2px, -1px); }
+  60% { transform: translate(2px, 1px); }
+  70% { transform: translate(1px, 2px); }
+  80% { transform: translate(-1px, -1px); }
+  90% { transform: translate(2px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.4s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* === BSOD TEXT BLINK === */
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* === TERMINAL CURSOR === */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+input[type="text"]:focus {
+  outline: none;
+}
+
+/* Selection style */
+::selection {
+  background: #316ac5;
+  color: white;
+}
+
+/* === FAN SPIN ANIMATION === */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
