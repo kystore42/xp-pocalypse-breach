@@ -1,10 +1,37 @@
 import { useGameStore, type HackerState, WAVES, DIFFICULTY_CONFIG } from '../../store/gameStore';
 import { getTranslation } from '../../i18n/translations';
+import type { MissionModifier } from '../campaign';
 
 function t(key: string, params?: Record<string, string | number>) {
   const lang = useGameStore.getState().language;
   return getTranslation(lang, key, params);
 }
+
+// === ADAPTIVE AI — tracks player behavior ===
+interface PlayerProfile {
+  patchCount: number;       // how often player patches nodes
+  killCount: number;        // how often player kills processes
+  blockCount: number;       // how often player blocks IPs
+  emailIgnored: number;     // phishing emails not opened
+  avgReactionTime: number;  // avg ticks between compromise and patch
+  lastCompromiseTick: number;
+  preferredTarget: 'nodes' | 'processes' | 'balanced'; // player's focus area
+}
+
+const playerProfile: PlayerProfile = {
+  patchCount: 0,
+  killCount: 0,
+  blockCount: 0,
+  emailIgnored: 0,
+  avgReactionTime: 0,
+  lastCompromiseTick: 0,
+  preferredTarget: 'balanced',
+};
+
+// Update player profile from state changes
+let lastKillCount = 0;
+let lastPatchedNodes = 0;
+let lastBlockedCount = 0;
 
 // Случайные хакерские IP-адреса
 const HACKER_IPS = [
@@ -58,6 +85,22 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Reset all module-level AI state between missions/games
+export function resetHackerAI() {
+  playerProfile.patchCount = 0;
+  playerProfile.killCount = 0;
+  playerProfile.blockCount = 0;
+  playerProfile.emailIgnored = 0;
+  playerProfile.avgReactionTime = 0;
+  playerProfile.lastCompromiseTick = 0;
+  playerProfile.preferredTarget = 'balanced';
+  lastKillCount = 0;
+  lastPatchedNodes = 0;
+  lastBlockedCount = 0;
+  emailCounter = 0;
+  malwareCounter = 0;
+}
+
 // Основной тик ИИ-хакера — вызывается каждую секунду
 export function hackerTick() {
   const state = useGameStore.getState();
@@ -66,24 +109,38 @@ export function hackerTick() {
   const { 
     hackerState, hackerAggression, gameTime, nodes, blockedIPs, 
     currentTargetNodeId, bruteforceProgress, attackCooldown,
-    hackerAdminAccess, breachLevel
+    hackerAdminAccess, breachLevel, campaignModifiers
   } = state;
 
   // Wave-based scaling: later waves make everything faster
-  const wave = WAVES[state.currentWave] || WAVES[WAVES.length - 1];
+  // Campaign-aware wave lookup  
+  const tickWaves = state.campaignActive
+    ? ((state as unknown as Record<string, unknown>).__campaignWaves as typeof WAVES | undefined) ?? WAVES
+    : WAVES;
+  const wave = tickWaves[state.currentWave] || tickWaves[tickWaves.length - 1];
   const waveScale = wave.breachRateMultiplier; // 0.8 → 3.5
   const diffConfig = DIFFICULTY_CONFIG[state.difficulty];
+
+  // Merge campaign modifiers with base AI logic
+  const mods = campaignModifiers || [];
+  const hasModifier = (m: MissionModifier) => mods.includes(m);
+
+  // === ADAPTIVE AI: update player profile ===
+  updatePlayerProfile(state);
+
+  // Stealth modifier: AI tactics are harder to detect
+  const stealthMode = hasModifier('stealth_ai');
 
   // === СТЕЙТ-МАШИНА ===
   switch (hackerState) {
     case 'RECON':
-      handleRecon(state, waveScale, diffConfig.hackerSpeedMult);
+      handleRecon(state, waveScale, diffConfig.hackerSpeedMult, mods);
       break;
     case 'ATTACK':
-      handleAttack(state, waveScale, diffConfig.hackerSpeedMult);
+      handleAttack(state, waveScale, diffConfig.hackerSpeedMult, mods);
       break;
     case 'HIDE':
-      handleHide(state, waveScale);
+      handleHide(state, waveScale, stealthMode);
       break;
   }
 
@@ -163,8 +220,10 @@ export function hackerTick() {
   }
 
   // Firewall v2 автоматически блокирует простые атаки
+  // Zero-day modifier: bypass firewall
   const hasFirewall = state.upgrades.find(u => u.id === 'firewall_v2')?.purchased;
-  if (hasFirewall && hackerState === 'ATTACK' && Math.random() < 0.2) {
+  const firewallEffective = hasFirewall && !hasModifier('zero_day');
+  if (firewallEffective && hackerState === 'ATTACK' && Math.random() < 0.2) {
     useGameStore.setState({ 
       hackerState: 'HIDE' as HackerState, 
       attackCooldown: Math.max(3, Math.floor(10 / waveScale)),
@@ -172,21 +231,83 @@ export function hackerTick() {
     });
     useGameStore.getState().addNotification({ text: t('notif.firewallBlocked'), type: 'success' });
   }
+
+  // === ADVANCED AI TACTICS ===
+
+  // 1. Polymorphic malware — rename malicious processes to evade detection
+  if ((hasModifier('polymorphic') || (state.currentWave >= 7 && Math.random() < 0.3)) && gameTime % 15 === 0) {
+    polymorphicMutation();
+  }
+
+  // 2. DNS Poisoning — shuffle node IPs to confuse player
+  if (hasModifier('dns_poisoning') && gameTime % 45 === 0 && gameTime > 20) {
+    dnsPoisoning();
+  }
+
+  // 3. Ransomware — lock nodes when breach is high
+  if ((hasModifier('ransomware') || (state.currentWave >= 8 && breachLevel > 75)) && breachLevel > 70 && gameTime % 30 === 0) {
+    ransomwareAttack();
+  }
+
+  // 4. Social engineering — double phishing in campaign
+  if (hasModifier('double_phishing') && gameTime > 10 && gameTime % Math.max(6, phishInterval - 5) === 0) {
+    sendPhishingEmail(); // extra phishing wave
+  }
+
+  // 5. Corrupted RAM — spawn legit-looking malware
+  if (hasModifier('corrupted_ram') && gameTime % 20 === 0 && breachLevel > 15) {
+    spawnCamouflagedProcess();
+  }
+
+  // 6. Lateral movement — compromised nodes spread infection to neighbors
+  if ((hasModifier('lateral_movement') || state.currentWave >= 6) && gameTime % 12 === 0) {
+    lateralSpread(waveScale);
+  }
+
+  // 7. Adaptive counter-tactics — AI exploits player's weaknesses
+  if (gameTime > 60 && gameTime % 20 === 0) {
+    adaptiveCounterTactic(waveScale, diffConfig.hackerSpeedMult);
+  }
+
+  // 8. Insider threat — spawn fake "system" emails that are actually phishing
+  if (hasModifier('insider_threat') && gameTime % 25 === 0 && gameTime > 15) {
+    sendInsiderThreatEmail();
+  }
 }
 
-function handleRecon(state: ReturnType<typeof useGameStore.getState>, waveScale: number, speedMult: number) {
+function handleRecon(state: ReturnType<typeof useGameStore.getState>, waveScale: number, speedMult: number, mods: MissionModifier[]) {
   const { gameTime, hackerAggression, nodes, blockedIPs } = state;
 
   // Разведка: выбор цели — faster scanning in later waves
   const reconInterval = Math.max(2, Math.floor((8 - hackerAggression) / (waveScale * speedMult)));
   if (gameTime % reconInterval === 0) {
-    // Найти незаблокированный, незахваченный узел для атаки
-    const targets = nodes.filter(n => 
+    // === SMART TARGET SELECTION ===
+    // Adaptive AI: prioritize targets based on player behavior
+    let targets = nodes.filter(n => 
       n.status === 'secure' && !blockedIPs.includes(n.ip)
     );
+
+    // Zero-day: bypass IP blocks — all secure nodes are fair game
+    if (mods.includes('zero_day')) {
+      targets = nodes.filter(n => n.status === 'secure');
+    }
     
     if (targets.length > 0) {
-      const target = pick(targets);
+      let target;
+      
+      // Adaptive: choose the node the player is least likely defending
+      if (playerProfile.patchCount > 5 && Math.random() < 0.6) {
+        // Player patches a lot — target the hardest nodes (player tends to patch easy ones)
+        targets.sort((a, b) => b.difficulty - a.difficulty);
+        target = targets[0];
+      } else if (playerProfile.blockCount > 3 && Math.random() < 0.5) {
+        // Player blocks IPs — target the node with least visibility (lowest difficulty, easy to miss)
+        targets.sort((a, b) => a.difficulty - b.difficulty);
+        target = targets[0];
+      } else {
+        // Standard random pick
+        target = pick(targets);
+      }
       
       useGameStore.setState({ 
         currentTargetNodeId: target.id,
@@ -208,7 +329,7 @@ function handleRecon(state: ReturnType<typeof useGameStore.getState>, waveScale:
   }
 }
 
-function handleAttack(state: ReturnType<typeof useGameStore.getState>, waveScale: number, speedMult: number) {
+function handleAttack(state: ReturnType<typeof useGameStore.getState>, waveScale: number, speedMult: number, mods: MissionModifier[]) {
   const { 
     currentTargetNodeId, bruteforceProgress, nodes, hackerAggression, 
     blockedIPs 
@@ -236,7 +357,8 @@ function handleAttack(state: ReturnType<typeof useGameStore.getState>, waveScale
 
   // Прогресс брутфорса зависит от сложности узла — scales with wave & difficulty
   const hasDecoy = state.upgrades.find(u => u.id === 'ai_decoy')?.purchased;
-  const bruteSpeed = (hackerAggression * 0.8) / targetNode.difficulty * (hasDecoy ? 0.5 : 1) * waveScale * speedMult;
+  const fragileBonus = mods.includes('fragile_nodes') ? 1.5 : 1;
+  const bruteSpeed = (hackerAggression * 0.8) / targetNode.difficulty * (hasDecoy ? 0.5 : 1) * waveScale * speedMult * fragileBonus;
   const newProgress = Math.round(Math.min(100, bruteforceProgress + bruteSpeed) * 100) / 100;
 
   // Логи в терминал
@@ -272,15 +394,27 @@ function handleAttack(state: ReturnType<typeof useGameStore.getState>, waveScale
   }
 }
 
-function handleHide(state: ReturnType<typeof useGameStore.getState>, waveScale: number) {
+function handleHide(state: ReturnType<typeof useGameStore.getState>, waveScale: number, stealthMode: boolean) {
   const { attackCooldown } = state;
   
-  // Cooldown decreases faster in later waves
-  const cooldownSpeed = Math.max(1, Math.ceil(waveScale));
+  // Stealth AI: longer hide phase, but less detectable
+  // The AI "rests" longer, making the player think it's gone, then strikes harder
+  const cooldownSpeed = stealthMode
+    ? Math.max(1, Math.ceil(waveScale * 0.5))  // slower recovery but...
+    : Math.max(1, Math.ceil(waveScale));
+  
   if (attackCooldown > 0) {
     useGameStore.setState({ attackCooldown: Math.max(0, attackCooldown - cooldownSpeed) });
   } else {
-    useGameStore.setState({ hackerState: 'RECON' as HackerState });
+    // Stealth AI: higher aggression after hide phase
+    if (stealthMode) {
+      useGameStore.setState({ 
+        hackerState: 'RECON' as HackerState,
+        hackerAggression: Math.min(10, state.hackerAggression + 0.5),
+      });
+    } else {
+      useGameStore.setState({ hackerState: 'RECON' as HackerState });
+    }
   }
 }
 
@@ -515,4 +649,289 @@ function triggerICQSpam() {
   setTimeout(() => {
     useGameStore.setState({ icqSpamActive: false });
   }, spamCount * 400 + 2000);
+}
+
+// ============== ADVANCED AI TACTICS ==============
+
+// Update adaptive player profile from state
+function updatePlayerProfile(state: ReturnType<typeof useGameStore.getState>) {
+  const currentKills = state.totalProcessesKilled || 0;
+  const currentBlocked = state.blockedIPs.length;
+  const currentPatched = state.nodes.filter(n => n.status === 'secure').length;
+
+  if (currentKills > lastKillCount) {
+    playerProfile.killCount += (currentKills - lastKillCount);
+    lastKillCount = currentKills;
+  }
+  if (currentBlocked > lastBlockedCount) {
+    playerProfile.blockCount += (currentBlocked - lastBlockedCount);
+    lastBlockedCount = currentBlocked;
+  }
+  if (currentPatched > lastPatchedNodes) {
+    playerProfile.patchCount += (currentPatched - lastPatchedNodes);
+    lastPatchedNodes = currentPatched;
+  }
+
+  // Determine player's focus area
+  const total = playerProfile.patchCount + playerProfile.killCount + playerProfile.blockCount;
+  if (total > 5) {
+    if (playerProfile.killCount > playerProfile.patchCount * 1.5) {
+      playerProfile.preferredTarget = 'processes';
+    } else if (playerProfile.patchCount > playerProfile.killCount * 1.5) {
+      playerProfile.preferredTarget = 'nodes';
+    } else {
+      playerProfile.preferredTarget = 'balanced';
+    }
+  }
+}
+
+// 1. Polymorphic malware — rename malicious processes to look legit
+function polymorphicMutation() {
+  const state = useGameStore.getState();
+  const legitimateNames = [
+    'svchost.exe', 'csrss.exe', 'lsass.exe', 'services.exe', 'winlogon.exe',
+    'smss.exe', 'wininit.exe', 'taskhost.exe', 'dwm.exe', 'conhost.exe',
+    'spoolsv.exe', 'msiexec.exe', 'dllhost.exe', 'RuntimeBroker.exe',
+  ];
+
+  const malicious = state.processes.filter(p => p.isMalicious);
+  if (malicious.length === 0) return;
+
+  // Pick a random malicious process and rename it
+  const target = pick(malicious);
+  const newName = pick(legitimateNames);
+  
+  useGameStore.setState(s => ({
+    processes: s.processes.map(p => 
+      p.pid === target.pid ? { ...p, name: newName, hidden: true } : p
+    ),
+  }));
+}
+
+// 2. DNS Poisoning — shuffle node IPs to confuse the player
+function dnsPoisoning() {
+  const state = useGameStore.getState();
+  const nodes = [...state.nodes];
+  
+  // Shuffle IPs of 2-3 random secure nodes
+  const secureNodes = nodes.filter(n => n.status === 'secure');
+  if (secureNodes.length < 2) return;
+
+  const count = Math.min(secureNodes.length, 2 + Math.floor(Math.random() * 2));
+  const shuffled = secureNodes.slice(0, count);
+  const ips = shuffled.map(n => n.ip);
+  
+  // Rotate IPs
+  const rotated = [ips[ips.length - 1], ...ips.slice(0, -1)];
+  
+  const updatedNodes = nodes.map(n => {
+    const idx = shuffled.findIndex(s => s.id === n.id);
+    if (idx >= 0) return { ...n, ip: rotated[idx] };
+    return n;
+  });
+
+  useGameStore.setState({ nodes: updatedNodes });
+
+  const lang = state.language;
+  useGameStore.getState().addNotification({
+    text: lang === 'uk'
+      ? '⚠️ DNS аномалія виявлена! IP-адреси вузлів змінилися!'
+      : '⚠️ DNS anomaly detected! Node IP addresses have changed!',
+    type: 'warning',
+  });
+  useGameStore.getState().addTerminalLine({
+    text: `[ALERT] DNS cache poisoning detected — IP mappings may be unreliable`,
+    type: 'error',
+  });
+}
+
+// 3. Ransomware — lock down nodes when breach is critical
+function ransomwareAttack() {
+  const state = useGameStore.getState();
+  const secureNodes = state.nodes.filter(n => n.status === 'secure');
+  if (secureNodes.length === 0) return;
+
+  // Lock 1-2 nodes
+  const target = pick(secureNodes);
+  
+  useGameStore.setState(s => ({
+    nodes: s.nodes.map(n => 
+      n.id === target.id ? { ...n, status: 'compromised' as const } : n
+    ),
+  }));
+
+  useGameStore.getState().addBreachLevel(10);
+
+  const lang = state.language;
+  useGameStore.getState().addNotification({
+    text: lang === 'uk'
+      ? `🔒 РАНСОМВАРЬ! Вузол ${target.name} зашифровано! Використайте patch щоб відновити!`
+      : `🔒 RANSOMWARE! Node ${target.name} encrypted! Use patch to recover!`,
+    type: 'error',
+  });
+  useGameStore.getState().addTerminalLine({
+    text: `[CRITICAL] Ransomware payload executed on ${target.name} (${target.ip}) — files encrypted`,
+    type: 'error',
+  });
+}
+
+// 4. Spawn camouflaged processes (corrupted RAM modifier)
+function spawnCamouflagedProcess() {
+  const state = useGameStore.getState();
+  const existing = state.processes.filter(p => p.isMalicious);
+  if (existing.length >= 6) return;
+
+  // These look EXACTLY like system processes, but they're malware
+  const camoNames = ['svchost.exe', 'csrss.exe', 'lsass.exe', 'services.exe', 'explorer.exe'];
+  const pid = 1000 + Math.floor(Math.random() * 3000);
+  
+  useGameStore.setState(s => ({
+    processes: [...s.processes, {
+      pid,
+      name: pick(camoNames),
+      cpu: Math.floor(Math.random() * 5 + 1), // low CPU to avoid suspicion
+      mem: `${Math.floor(Math.random() * 15 + 3)} MB`, // low memory
+      isMalicious: true,
+      hidden: true, // hidden from normal view
+    }],
+  }));
+
+  useGameStore.getState().addBreachLevel(1);
+}
+
+// 5. Lateral movement — compromised nodes spread infection
+function lateralSpread(waveScale: number) {
+  const state = useGameStore.getState();
+  const compromised = state.nodes.filter(n => n.status === 'compromised');
+  const secure = state.nodes.filter(n => n.status === 'secure');
+  
+  if (compromised.length === 0 || secure.length === 0) return;
+  if (Math.random() > 0.35 * Math.min(2, waveScale)) return; // chance scales with wave
+
+  // Pick a random secure node adjacent to a compromised one
+  // "Adjacent" = next in the node list (simplified topology)
+  const nodeIds = state.nodes.map(n => n.id);
+  for (const comp of compromised) {
+    const compIdx = nodeIds.indexOf(comp.id);
+    const neighbors = [compIdx - 1, compIdx + 1]
+      .filter(i => i >= 0 && i < state.nodes.length)
+      .map(i => state.nodes[i])
+      .filter(n => n.status === 'secure');
+    
+    if (neighbors.length > 0) {
+      const victim = pick(neighbors);
+      // Start probing the neighbor — don't compromise instantly
+      useGameStore.setState(s => ({
+        nodes: s.nodes.map(n => 
+          n.id === victim.id ? { ...n, status: 'probing' as const } : n
+        ),
+      }));
+
+      const lang = state.language;
+      useGameStore.getState().addNotification({
+        text: lang === 'uk'
+          ? `🕸️ Lateral movement: ${comp.name} заражає сусідній ${victim.name}!`
+          : `🕸️ Lateral movement: ${comp.name} spreading to ${victim.name}!`,
+        type: 'warning',
+      });
+
+      useGameStore.getState().addBreachLevel(3);
+      break; // Only one spread per tick
+    }
+  }
+}
+
+// 6. Adaptive counter-tactics — AI reads player behavior and counters it
+function adaptiveCounterTactic(waveScale: number, speedMult: number) {
+  const state = useGameStore.getState();
+  
+  if (playerProfile.preferredTarget === 'processes') {
+    // Player focuses on killing processes → AI spawns more stealthily
+    if (Math.random() < 0.4) {
+      spawnCamouflagedProcess();
+      useGameStore.getState().addTerminalLine({
+        text: `[AI] Hacker adapted: deploying stealth processes to evade task manager`,
+        type: 'warning',
+      });
+    }
+  } else if (playerProfile.preferredTarget === 'nodes') {
+    // Player focuses on patching → AI increases brute force speed temporarily
+    if (Math.random() < 0.4 && state.hackerState === 'ATTACK') {
+      useGameStore.setState(s => ({
+        bruteforceProgress: Math.round(Math.min(100, s.bruteforceProgress + 15) * 100) / 100,
+      }));
+      useGameStore.getState().addTerminalLine({
+        text: `[AI] Hacker adapted: brute-force acceleration detected`,
+        type: 'warning',
+      });
+    }
+  }
+
+  // If player blocks IPs frequently, hacker rotates IPs
+  if (playerProfile.blockCount > 5 && Math.random() < 0.3) {
+    // "Rotate" — unblock oldest IP and re-attack
+    const blocked = state.blockedIPs;
+    if (blocked.length > 2) {
+      const released = blocked[0]; // oldest blocked IP
+      useGameStore.setState(s => ({
+        blockedIPs: s.blockedIPs.filter(ip => ip !== released),
+      }));
+      
+      const lang = state.language;
+      useGameStore.getState().addNotification({
+        text: lang === 'uk'
+          ? `🔄 Хакер змінив IP! ${released} знову активний!`
+          : `🔄 Hacker rotated IP! ${released} is active again!`,
+        type: 'warning',
+      });
+    }
+  }
+}
+
+// 7. Insider threat email — looks like system email but is phishing
+function sendInsiderThreatEmail() {
+  emailCounter++;
+  const insiderTemplates = [
+    {
+      from: 'HR Department <hr@your-company.local>',
+      subject: 'Updated Employee Handbook — Please Review',
+      body: `All employees,\n\nThe updated employee handbook has been attached for your review. Please download and sign the acknowledgment form.\n\nThis is mandatory for all staff by end of week.\n\n— Human Resources`,
+      attachment: 'Employee_Handbook_2024.exe',
+    },
+    {
+      from: 'IT Helpdesk <helpdesk@your-company.local>',
+      subject: 'Password Reset Required — Security Audit',
+      body: `Dear User,\n\nAs part of our quarterly security audit, all passwords must be reset.\n\nPlease run the attached tool to update your credentials automatically.\n\nFailure to comply will result in account suspension.\n\n— IT Security Team`,
+      attachment: 'PasswordReset_Tool.exe',
+    },
+    {
+      from: 'Accounting <accounting@your-company.local>',
+      subject: 'Expense Report — Q4 Summary Attached',
+      body: `Hi,\n\nPlease find attached the Q4 expense summary for your department.\n\nNote: The file requires macros to be enabled for proper formatting.\n\n— Accounting Department`,
+      attachment: 'Q4_Expense_Report.xlsm.exe',
+    },
+  ];
+
+  const template = pick(insiderTemplates);
+  const email = {
+    id: `email_${emailCounter}`,
+    from: template.from,
+    subject: template.subject,
+    body: template.body,
+    time: new Date().toLocaleTimeString(),
+    isPhishing: true, // stealth phishing
+    read: false,
+    clickedLink: false,
+    attachment: template.attachment,
+  };
+
+  useGameStore.setState(s => ({
+    emails: [email, ...s.emails],
+    unreadCount: s.unreadCount + 1,
+  }));
+
+  useGameStore.getState().addNotification({ 
+    text: t('notif.newEmail', { subject: template.subject }), 
+    type: 'info', // appears as regular info, not warning
+  });
 }

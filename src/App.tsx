@@ -32,8 +32,9 @@ import DefragApp from './apps/DefragApp';
 import HardwareShopApp from './apps/HardwareShopApp';
 import FirewallTetrisApp from './apps/FirewallTetrisApp';
 import AchievementsApp from './apps/AchievementsApp';
+import CampaignApp from './apps/CampaignApp';
 
-type IconId = 'network' | 'cmd' | 'outlook' | 'recycleBin' | 'taskMgr' | 'updateCenter' | 'settings' | 'cooler' | 'icq' | 'defrag' | 'hardwareShop' | 'firewallTetris' | 'achievements';
+type IconId = 'network' | 'cmd' | 'outlook' | 'recycleBin' | 'taskMgr' | 'updateCenter' | 'settings' | 'cooler' | 'icq' | 'defrag' | 'hardwareShop' | 'firewallTetris' | 'achievements' | 'campaign';
 
 interface IconDef {
   id: IconId;
@@ -56,6 +57,7 @@ const ICON_DEFS: IconDef[] = [
   { id: 'hardwareShop', labelKey: 'taskbar.hardwareShop', icon: '🔧', windowId: 'hardwareShop' },
   { id: 'firewallTetris', labelKey: 'taskbar.firewallTetris', icon: '🧱', windowId: 'firewallTetris' },
   { id: 'achievements', labelKey: 'taskbar.achievements', icon: '🏆', windowId: 'achievements' },
+  { id: 'campaign', labelKey: 'desktop.campaign', icon: '📜', windowId: 'campaign' },
 ];
 
 const ICON_W = 80;
@@ -243,6 +245,9 @@ export default function App() {
 
       {/* === ACHIEVEMENTS === */}
       <AchievementsApp />
+
+      {/* === CAMPAIGN === */}
+      <CampaignApp />
 
       {/* === ERROR POPUPS (visual chaos) === */}
       <ErrorPopups />

@@ -227,6 +227,8 @@ const en: Translations = {
   'desktop.firewallTetris': 'Firewall Tetris',
   'taskbar.achievements': 'Achievements',
   'desktop.achievements': 'Achievements',
+  'taskbar.campaign': 'Campaign',
+  'desktop.campaign': 'Campaign',
 
   // === Cooler / Thermal ===
   'cooler.title': 'System Case — Cooling',
@@ -528,6 +530,8 @@ const uk: Translations = {
   'desktop.firewallTetris': 'Firewall Тетріс',
   'taskbar.achievements': 'Досягнення',
   'desktop.achievements': 'Досягнення',
+  'taskbar.campaign': 'Кампанія',
+  'desktop.campaign': 'Кампанія',
 
   // === Cooler / Thermal ===
   'cooler.title': 'Системний блок — Охолодження',

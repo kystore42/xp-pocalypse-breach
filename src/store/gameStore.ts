@@ -3,6 +3,8 @@ import type { Language } from '../i18n/translations';
 import { getTranslation } from '../i18n/translations';
 import { playAlert, playNotification, playProcessKill, playBreachPulse, playWaveComplete, playAchievement, playBSOD, playKeyPress } from '../core/audio/soundManager';
 import { saveGame as saveFn, loadGame as loadFn, exportSave as exportFn, importSave as importFn, downloadFile } from '../core/saveSystem';
+import { CAMPAIGN_MISSIONS, calculateMissionStars, type CampaignState, type CampaignMission, type MissionModifier } from '../core/campaign';
+import { resetHackerAI } from '../core/ai/hackerAI';
 
 // ============== ТИПЫ ==============
 
@@ -146,7 +148,7 @@ export interface FWTetrisPacket {
   label: string;
 }
 
-export type WindowId = 'network' | 'cmd' | 'outlook' | 'recycleBin' | 'taskMgr' | 'updateCenter' | 'settings' | 'cooler' | 'icq' | 'defrag' | 'hardwareShop' | 'firewallTetris' | 'achievements';
+export type WindowId = 'network' | 'cmd' | 'outlook' | 'recycleBin' | 'taskMgr' | 'updateCenter' | 'settings' | 'cooler' | 'icq' | 'defrag' | 'hardwareShop' | 'firewallTetris' | 'achievements' | 'campaign';
 
 export interface WindowState {
   id: WindowId;
@@ -284,6 +286,12 @@ interface GameState {
   // --- New Game+ ---
   newGamePlusLevel: number;      // 0 = first run, 1+ = NG+ level
 
+  // --- Campaign ---
+  campaignState: CampaignState;
+  campaignActive: boolean;           // true when playing a campaign mission
+  campaignMissionId: string | null;  // current campaign mission id
+  campaignModifiers: MissionModifier[]; // active modifiers for current mission
+
   // --- ACTIONS ---
   tick: () => void;
   openWindow: (id: WindowId) => void;
@@ -370,6 +378,10 @@ interface GameState {
 
   // --- New Game+ ---
   startNewGamePlus: () => void;
+
+  // --- Campaign ---
+  startCampaignMission: (missionId: string) => void;
+  completeCampaignMission: () => void;
 
   resetGame: () => void;
 }
@@ -482,6 +494,15 @@ const initialWindows: Record<WindowId, WindowState> = {
   hardwareShop: { id: 'hardwareShop', isOpen: false, zIndex: 10, position: { x: 160, y: 80 }, minimized: false },
   firewallTetris: { id: 'firewallTetris', isOpen: false, zIndex: 10, position: { x: 140, y: 60 }, minimized: false },
   achievements: { id: 'achievements', isOpen: false, zIndex: 10, position: { x: 220, y: 90 }, minimized: false },
+  campaign: { id: 'campaign', isOpen: false, zIndex: 10, position: { x: 130, y: 50 }, minimized: false },
+};
+
+const initialCampaignState: CampaignState = {
+  currentMissionId: null,
+  completedMissions: [],
+  unlockedEras: ['win31'],
+  totalStars: 0,
+  missionStars: {},
 };
 
 let notifCounter = 0;
@@ -607,6 +628,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   // --- New Game+ ---
   newGamePlusLevel: 0,
 
+  // --- Campaign ---
+  campaignState: { ...initialCampaignState },
+  campaignActive: false,
+  campaignMissionId: null,
+  campaignModifiers: [],
+
   // ============== ACTIONS ==============
 
   tick: () => {
@@ -616,7 +643,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     const newGameTime = state.gameTime + 1;
     
     // Wave-based aggression
-    const wave = WAVES[state.currentWave] || WAVES[WAVES.length - 1];
+    const tickWaves = state.campaignActive
+      ? ((state as unknown as Record<string, unknown>).__campaignWaves as WaveConfig[] | undefined) ?? WAVES
+      : WAVES;
+    const wave = tickWaves[state.currentWave] || tickWaves[tickWaves.length - 1];
     const diffConfig = DIFFICULTY_CONFIG[state.difficulty];
     const baseAggression = Math.min(10, 1 + Math.floor(newGameTime / 60));
     const aggression = Math.min(10, baseAggression + wave.aggressionBonus);
@@ -652,17 +682,25 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 
     // Passive breach — the network is under constant pressure
-    const passiveBreachRate = 0.15 * wave.breachRateMultiplier * diffConfig.breachMult;
+    const campaignBreachMod = state.campaignModifiers.includes('fast_breach') ? 2 : 1;
+    const passiveBreachRate = 0.15 * wave.breachRateMultiplier * diffConfig.breachMult * campaignBreachMod;
     const psuLevel = state.hardware.find(h => h.id === 'psu_upgrade')?.level ?? 0;
     const passiveResistance = Math.max(0.3, 1 - psuLevel * 0.05);
     const passiveBreach = passiveBreachRate * passiveResistance;
+
+    // Campaign: lateral movement — compromised nodes increase breach faster
+    let lateralBreach = 0;
+    if (state.campaignModifiers.includes('lateral_movement')) {
+      const compromisedCount = state.nodes.filter(n => n.status === 'compromised').length;
+      lateralBreach = compromisedCount * 0.05 * wave.breachRateMultiplier;
+    }
 
     // AI decoy slows down brute
     const hasDecoy = state.upgrades.find(u => u.id === 'ai_decoy')?.purchased;
     const bruteMultiplier = hasDecoy ? 0.5 : 1;
 
     // Game over check — trigger BSOD minigame instead of instant death
-    const breachAfterReduction = Math.round(Math.max(0, state.breachLevel + passiveBreach - breachReduction) * 100) / 100;
+    const breachAfterReduction = Math.round(Math.max(0, state.breachLevel + passiveBreach + lateralBreach - breachReduction) * 100) / 100;
     const shouldTriggerBSOD = breachAfterReduction >= state.maxBreachLevel && !state.bsodMinigame;
 
     // Autocomplete prompt: when player earns 10+ SP and hasn't bought/been prompted
@@ -680,16 +718,31 @@ export const useGameStore = create<GameState>((set, get) => ({
     let wavesCompleted = state.wavesCompleted;
     let gameWon = false;
 
+    // Use campaign waves if active, otherwise use standard WAVES
+    const activeWaves = state.campaignActive
+      ? ((state as unknown as Record<string, unknown>).__campaignWaves as WaveConfig[] | undefined) ?? WAVES
+      : WAVES;
+
     if (newWaveTimeLeft <= 0) {
       wavesCompleted = state.currentWave + 1;
-      if (wavesCompleted >= WAVES.length) {
+      if (wavesCompleted >= activeWaves.length) {
         // All waves completed — victory!
         gameWon = true;
+        // If campaign mission — record completion
+        if (state.campaignActive && state.campaignMissionId) {
+          setTimeout(() => get().completeCampaignMission(), 0);
+        }
       } else {
         // Enter shop phase between waves
-        wavePaused = true;
-        currentWave = wavesCompleted;
-        newWaveTimeLeft = WAVES[currentWave].duration;
+        // Campaign modifier: no_shop skips shop phase
+        if (state.campaignModifiers.includes('no_shop')) {
+          currentWave = wavesCompleted;
+          newWaveTimeLeft = activeWaves[currentWave].duration;
+        } else {
+          wavePaused = true;
+          currentWave = wavesCompleted;
+          newWaveTimeLeft = activeWaves[currentWave].duration;
+        }
       }
     }
 
@@ -1152,7 +1205,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   addBreachLevel: (amount) => set(s => {
     const psuLevel = s.hardware.find(h => h.id === 'psu_upgrade')?.level ?? 0;
     const resistance = 1 - psuLevel * 0.05; // 5% reduction per level
-    const wave = WAVES[s.currentWave] || WAVES[WAVES.length - 1];
+    const abWaves = s.campaignActive
+      ? ((s as unknown as Record<string, unknown>).__campaignWaves as WaveConfig[] | undefined) ?? WAVES
+      : WAVES;
+    const wave = abWaves[s.currentWave] || abWaves[abWaves.length - 1];
     const diffConfig = DIFFICULTY_CONFIG[s.difficulty];
     const ngMult = 1 + (s.newGamePlusLevel || 0) * 0.15; // +15% per NG+ level
     const reduced = amount * Math.max(0.5, resistance) * wave.breachRateMultiplier * diffConfig.breachMult * ngMult;
@@ -1617,6 +1673,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const keptLang = state.language;
     const keptDiff = state.difficulty;
     const keptClippyDisabled = state.clippyDisabled;
+    const keptCampaign = { ...state.campaignState };
     // Bonus SP from NG+: 10 * level
     const bonusSP = ngLevel * 10;
 
@@ -1633,15 +1690,168 @@ export const useGameStore = create<GameState>((set, get) => ({
       stabilityPoints: bonusSP,
       tutorialStep: -1,
       tutorialActive: false,
+      campaignState: keptCampaign,
     });
 
     // Re-apply difficulty with NG+ scaling
     get().setDifficulty(keptDiff);
   },
 
+  // --- Campaign ---
+  startCampaignMission: (missionId: string) => {
+    const mission = CAMPAIGN_MISSIONS.find(m => m.id === missionId);
+    if (!mission) return;
+
+    const state = get();
+    const keptAchievements = state.achievements.map(a => ({ ...a }));
+    const keptLang = state.language;
+    const keptClippyDisabled = state.clippyDisabled;
+    const keptCampaign = { ...state.campaignState, currentMissionId: missionId };
+
+    // Reset game first
+    get().resetGame();
+
+    // Generate campaign waves
+    const campaignWaves: WaveConfig[] = [];
+    for (let i = 0; i < mission.waves; i++) {
+      const progress = i / Math.max(1, mission.waves - 1); // 0..1
+      campaignWaves.push({
+        id: i + 1,
+        name: `Wave ${i + 1}`,
+        duration: Math.round(mission.waveDurationBase + progress * 20),
+        hackerPhase: i < 2 ? 'RECON' as const : 'ATTACK' as const,
+        aggressionBonus: Math.round((1 + progress * 9) * mission.aiSpeedMultiplier),
+        breachRateMultiplier: Math.round((1 + progress * (mission.breachMultiplier - 1) * 3) * 100) / 100,
+      });
+    }
+
+    // Generate campaign nodes
+    const nodeNames = [
+      'Main Server', 'Database', 'Mail Server', 'Backup NAS', 'Firewall Gateway',
+      'Workstation #3', 'DMZ Proxy', 'SCADA Controller', 'File Server', 'Print Server',
+      'DNS Server', 'Web Server',
+    ];
+    const nodeIPs = [
+      '192.168.1.1', '192.168.1.10', '192.168.1.20', '192.168.1.50', '10.0.0.1',
+      '192.168.1.103', '10.0.1.5', '10.0.2.10', '192.168.1.200', '192.168.1.201',
+      '10.0.0.53', '192.168.1.80',
+    ];
+    const campaignNodes: NetworkNode[] = [];
+    const count = Math.min(mission.nodeCount, nodeNames.length);
+    for (let i = 0; i < count; i++) {
+      campaignNodes.push({
+        id: `node${i + 1}`,
+        name: nodeNames[i],
+        ip: nodeIPs[i],
+        status: 'secure',
+        password: `pass_${Math.random().toString(36).substring(2, 6)}`,
+        difficulty: 1 + Math.floor(i * 4 / count),
+        firewalled: i === 4, // gateway is firewalled
+      });
+    }
+    // Add special nodes from mission
+    if (mission.specialNodes) {
+      for (const sn of mission.specialNodes) {
+        campaignNodes.push({
+          id: sn.id,
+          name: sn.name,
+          ip: sn.ip,
+          status: 'secure',
+          password: `sp_${Math.random().toString(36).substring(2, 6)}`,
+          difficulty: sn.difficulty,
+          firewalled: sn.firewalled,
+        });
+      }
+    }
+
+    // Apply campaign state
+    set({
+      campaignActive: true,
+      campaignMissionId: missionId,
+      campaignModifiers: [...mission.modifiers],
+      campaignState: keptCampaign,
+      achievements: keptAchievements,
+      language: keptLang,
+      clippyDisabled: keptClippyDisabled,
+      stabilityPoints: mission.startingSP,
+      nodes: campaignNodes,
+      currentWave: 0,
+      waveTimeLeft: campaignWaves[0].duration,
+      wavePaused: false,
+      wavesCompleted: 0,
+      totalWaves: campaignWaves.length,
+      gameWon: false,
+      tutorialStep: -1,
+      tutorialActive: false,
+      hackerAggression: 1,
+    });
+
+    // Store generated waves on the object for tick to use
+    (get() as unknown as Record<string, unknown>).__campaignWaves = campaignWaves;
+  },
+
+  completeCampaignMission: () => {
+    const state = get();
+    if (!state.campaignMissionId) return;
+
+    const missionId = state.campaignMissionId;
+    const mission = CAMPAIGN_MISSIONS.find(m => m.id === missionId);
+    if (!mission) return;
+
+    // Calculate stars
+    const totalWaveDur = mission.waves * mission.waveDurationBase;
+    const stars = calculateMissionStars(state.breachLevel, state.gameTime, totalWaveDur);
+
+    // Update campaign state
+    const prevStars = state.campaignState.missionStars[missionId] || 0;
+    const bestStars = Math.max(prevStars, stars);
+    const completedMissions = state.campaignState.completedMissions.includes(missionId)
+      ? state.campaignState.completedMissions
+      : [...state.campaignState.completedMissions, missionId];
+
+    // Recalculate total stars
+    const newMissionStars = { ...state.campaignState.missionStars, [missionId]: bestStars };
+    const totalStars = Object.values(newMissionStars).reduce((sum: number, s: number) => sum + s, 0);
+
+    // Determine newly unlocked eras
+    const unlockedEras = [...state.campaignState.unlockedEras];
+    for (const m of CAMPAIGN_MISSIONS) {
+      if (m.unlockCondition && completedMissions.includes(m.unlockCondition)) {
+        if (!unlockedEras.includes(m.era)) {
+          unlockedEras.push(m.era);
+        }
+      }
+    }
+
+    // Award SP reward
+    const spReward = prevStars === 0 ? mission.reward.sp : 0; // only award SP on first completion
+
+    set({
+      campaignState: {
+        currentMissionId: null,
+        completedMissions,
+        unlockedEras,
+        totalStars,
+        missionStars: newMissionStars,
+      },
+      stabilityPoints: state.stabilityPoints + spReward,
+    });
+
+    const lang = state.language;
+    if (spReward > 0) {
+      get().addNotification({
+        text: lang === 'uk'
+          ? `⭐ Місію завершено! ${stars} зірок, +${spReward} SP`
+          : `⭐ Mission complete! ${stars} stars, +${spReward} SP`,
+        type: 'success',
+      });
+    }
+  },
+
   resetGame: () => {
     notifCounter = 0;
     errorCounter = 0;
+    resetHackerAI();
     const currentLang = get().language;
     set({
       language: currentLang,
@@ -1725,6 +1935,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       fwTetrisTimeLeft: 0,
       // New Game+ reset
       newGamePlusLevel: 0,
+      // Campaign reset (does NOT reset campaign progress)
+      campaignActive: false,
+      campaignMissionId: null,
+      campaignModifiers: [],
     });
     // Apply difficulty settings
     const diff = get().difficulty;
