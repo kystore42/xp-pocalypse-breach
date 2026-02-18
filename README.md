@@ -57,28 +57,33 @@ Everything runs in your browser. No backend. No accounts. Just pure nostalgia-fu
 - Gets more aggressive over time with escalating events
 - Reacts to your defenses and adapts strategies
 
-### 🌊 Wave System (7 Waves)
-| Wave | Name | Duration | Threat |
-|------|------|----------|--------|
-| 1 | Reconnaissance | 2 min | 🔴⚫⚫⚫⚫ |
-| 2 | First Strike | 2.5 min | 🔴🔴⚫⚫⚫ |
-| 3 | Escalation | 3 min | 🔴🔴🔴⚫⚫ |
-| 4 | Full Assault | 3 min | 🔴🔴🔴⚫⚫ |
-| 5 | Deep Infiltration | 3.5 min | 🔴🔴🔴🔴⚫ |
-| 6 | Total War | 4 min | 🔴🔴🔴🔴🔴 |
-| 7 | Final Boss | 4 min | 🔴🔴🔴🔴🔴 |
+### 🌊 Wave System (10 Waves)
+| Wave | Name | Duration | Breach Rate | Threat |
+|------|------|----------|-------------|--------|
+| 1 | Reconnaissance | 1 min | 1.0× | 🔴⚫⚫⚫⚫ |
+| 2 | Probing | 1:10 | 1.3× | 🔴🔴⚫⚫⚫ |
+| 3 | First Strike | 1:20 | 1.6× | 🔴🔴⚫⚫⚫ |
+| 4 | Escalation | 1:20 | 1.9× | 🔴🔴🔴⚫⚫ |
+| 5 | Persistent Threat | 1:30 | 2.2× | 🔴🔴🔴⚫⚫ |
+| 6 | Full Assault | 1:30 | 2.5× | 🔴🔴🔴🔴⚫ |
+| 7 | Zero-Day Exploit | 1:40 | 2.8× | 🔴🔴🔴🔴⚫ |
+| 8 | APT — Advanced | 1:40 | 3.2× | 🔴🔴🔴🔴🔴 |
+| 9 | Cyber Armageddon | 1:50 | 3.6× | 🔴🔴🔴🔴🔴 |
+| 10 | Final Boss | 2 min | 4.0× | 🔴🔴🔴🔴🔴 |
 
 Shop phase between waves — spend SP on upgrades and hardware!
+
+> ⚠️ **Passive breach** rises automatically each tick — even doing nothing will cost you!
 
 ### 🏆 Achievements (10 Unlockables)
 Survive milestones, kill quotas, low breach records, and more — each grants bonus SP.
 
 ### 🎯 Difficulty Levels
-| Difficulty | Hacker Speed | Starting SP | Nodes |
-|------------|-------------|-------------|-------|
-| Easy | 0.6× | 30 | 4 |
-| Normal | 1× | 0 | 6 |
-| Hard | 1.5× | 0 | 8 |
+| Difficulty | Hacker Speed | Breach Mult | Starting SP | Nodes |
+|------------|-------------|-------------|-------------|-------|
+| Easy | 0.7× | 0.8× | 25 | 4 |
+| Normal | 1× | 1× | 0 | 6 |
+| Hard | 1.4× | 1.4× | 0 | 8 |
 
 ### 🎮 Mini-Games
 - **🧱 Firewall Tetris** — Falling network packets: block red (malicious), let green (legit) pass through
@@ -86,8 +91,15 @@ Survive milestones, kill quotas, low breach records, and more — each grants bo
 - **💾 Disk Defrag** — Drag blue blocks to neutralize red malware sectors
 - **🖥️ System Cooler** — Click fans to cool CPU when crypto miners overheat the system
 
-### 📎 Clippy Helper
-The legendary Office paperclip is back! Appears with context-aware tips (and occasional jokes). You can disable him for 10 SP if he gets annoying.
+### 📎 Animated Clippy Helper
+The legendary Office paperclip is back as an **animated SVG** with 6 expressions! Appears with context-aware tips, sarcastic humor, and bilingual jokes (EN/UK). You can disable him for 10 SP if he gets annoying.
+
+### 💾 Save/Load & New Game+
+- **Save/Load** — Persist progress to localStorage, or export/import JSON save files
+- **New Game+** — Beat the game to unlock NG+ with +15% breach scaling per level
+
+### 🖥️ CRT Shader
+WebGL post-processing with scanlines, vignette, and curvature for that authentic retro monitor feel.
 
 ### 🔊 Sound & Music
 All audio generated via **Web Audio API** — no sound files needed:
@@ -126,15 +138,18 @@ Open [http://localhost:5173](http://localhost:5173) and defend your network!
 
 ## 🕹️ How to Play
 
-1. **Select Difficulty** — Choose Easy, Normal, or Hard
-2. **Follow the Tutorial** — 8-step intro covering the basics
+1. **Select Language & Difficulty** — English or Ukrainian; Easy, Normal, or Hard
+2. **Follow the Tutorial** — 12-step intro covering all mechanics
 3. **Open cmd.exe** — Your most important tool
 4. **Type `scan`** — Discover threats on the network
 5. **Patch compromised nodes** — `patch node1`
 6. **Kill malicious processes** — `taskkill /pid 1234`
 7. **Avoid phishing** — Don't click suspicious email attachments
-8. **Spend SP wisely** — Upgrade at Windows Update & Hardware Shop
-9. **Survive all 7 waves** — Win the game!
+8. **Play Firewall Tetris** — Block red packets, let green ones pass
+9. **Spend SP wisely** — Upgrade at Windows Update & Hardware Shop
+10. **Stay active!** — Breach rises passively, even if you do nothing
+11. **Save your progress** — Use Settings to save/load/export
+12. **Survive all 10 waves** — Win and unlock New Game+!
 
 ### Terminal Commands
 
@@ -158,7 +173,7 @@ Open [http://localhost:5173](http://localhost:5173) and defend your network!
 | [React 19](https://react.dev/) | UI framework |
 | [TypeScript 5.2](https://www.typescriptlang.org/) | Type safety |
 | [Vite 6](https://vite.dev/) | Build tool & dev server |
-| [Zustand 4.5](https://zustand.docs.pmnd.rs/) | State management (single store, ~1600 lines) |
+| [Zustand 4.5](https://zustand.docs.pmnd.rs/) | State management (single store, ~1730 lines) |
 | [Tailwind CSS 3.4](https://tailwindcss.com/) | Utility-first styling |
 | [Framer Motion 11](https://www.framer.com/motion/) | Animations |
 | [Lucide React](https://lucide.dev/) | Icons |
@@ -179,7 +194,8 @@ src/
 │   ├── RecycleBinApp.tsx      # Recycle Bin — hidden malware
 │   ├── UpdateCenterApp.tsx    # Windows Update — SP upgrades
 │   ├── HardwareShopApp.tsx    # Hardware shop — system upgrades
-│   ├── SettingsApp.tsx        # Settings — language, difficulty, sound
+│   ├── AchievementsApp.tsx    # Achievements — 10 unlockables
+│   ├── SettingsApp.tsx        # Settings — language, difficulty, sound, save/load
 │   ├── CoolerApp.tsx          # System Case — CPU cooling
 │   ├── ICQApp.tsx             # ICQ — spam bot mini-game
 │   ├── DefragApp.tsx          # Disk Defrag — block puzzle
@@ -193,16 +209,21 @@ src/
 │   ├── GameOverScreen.tsx     # BSOD + reversal minigame
 │   ├── WaveHUD.tsx            # Wave progress display
 │   ├── WaveShopOverlay.tsx    # Between-wave shop + victory
-│   ├── TutorialOverlay.tsx    # 8-step tutorial
+│   ├── TutorialOverlay.tsx    # 12-step tutorial
 │   ├── DifficultySelect.tsx   # Pre-game difficulty picker
-│   └── ClippyHelper.tsx       # Clippy assistant
+│   ├── LanguageSelect.tsx     # Language picker (EN/UK)
+│   ├── ClippyHelper.tsx       # Clippy assistant
+│   ├── AnimatedClippySVG.tsx  # SVG Clippy with 6 expressions
+│   ├── CRTShader.tsx          # WebGL CRT post-processing
+│   └── NetworkMiniMap.tsx     # SVG network topology map
 ├── core/
 │   ├── ai/
-│   │   └── hackerAI.ts        # AI state machine (~490 lines)
-│   └── audio/
-│       └── soundManager.ts    # Web Audio API sound generation
+│   │   └── hackerAI.ts        # AI state machine (~520 lines)
+│   ├── audio/
+│   │   └── soundManager.ts    # Web Audio API sound generation
+│   └── saveSystem.ts          # Save/Load + JSON export/import
 ├── store/
-│   └── gameStore.ts           # Zustand store (~1600 lines)
+│   └── gameStore.ts           # Zustand store (~1730 lines)
 ├── hooks/
 │   └── useTranslation.ts      # i18n hook
 ├── i18n/
@@ -216,18 +237,22 @@ src/
 
 ## 🗺️ Roadmap
 
-### v0.2 — Next Up
-- [ ] **Save/Load system** — localStorage persistence with import/export
-- [ ] **New Game+ mode** — Restart with achievements & harder modifiers
-- [ ] **Leaderboard** — Local high scores with stats (time, kills, breach %)
-- [ ] **Network topology mini-map** — Real-time visual of node connections
+### v0.2 — ✅ Completed
+- [x] **Save/Load system** — localStorage persistence with JSON import/export
+- [x] **New Game+ mode** — Restart with achievements & +15% breach scaling per level
+- [x] **Network topology mini-map** — SVG real-time visual embedded in My Network Places
+- [x] **Advanced CRT shader** — WebGL post-processing with scanlines, vignette & curvature
+- [x] **Animated Clippy** — SVG sprite with 6 expressions + bilingual humor tips
+- [x] **10-wave system** — Expanded from 7 to 10 waves with passive breach mechanic
+- [x] **Floating-point precision** — All timers, scores, and values display cleanly
 
-### v0.3 — Content Expansion
+### v0.3 — Next Up
+- [ ] **Leaderboard** — Local high scores with stats (time, kills, breach %)
 - [ ] **3 new mini-games:**
   - 🔐 *Password Cracker Duel* — Type faster than the AI to win the hash race
   - 📡 *Signal Interceptor* — Tune radio frequencies to decode hacker comms
   - 🕸️ *Honeypot Builder* — Lay traps that slow down the AI
-- [ ] **Boss events** — Unique scripted encounters at waves 4 and 7
+- [ ] **Boss events** — Unique scripted encounters at waves 5 and 10
 - [ ] **Rare loot drops** — Random powerful one-time use items
 - [ ] **Dynamic events** — Power outages, server room floods, insider threats
 
@@ -239,8 +264,6 @@ src/
 
 ### v0.5 — Polish & Immersion
 - [ ] **Full soundtrack** — Generated chiptune / synthwave tracks
-- [ ] **Advanced CRT shader** — WebGL post-processing with curvature & bloom
-- [ ] **Animated Clippy** — SVG sprite animation with expressions
 - [ ] **Desktop themes** — Luna, Royale, Zune, Classic skins
 - [ ] **Custom wallpapers** — Upload your own or use corruption-reactive ones
 
